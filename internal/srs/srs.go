@@ -29,7 +29,7 @@ type State struct {
 }
 
 // quality переводит оценку в число q из SM-2.
-func quantity(g Grade) (int, error) {
+func quality(g Grade) (int, error) {
 	switch g {
 	case GradeAgain:
 		return 1, nil
@@ -44,7 +44,7 @@ func quantity(g Grade) (int, error) {
 }
 
 func Next(s State, g Grade, now time.Time) (State, error) {
-	q, err := quantity(g)
+	q, err := quality(g)
 	if err != nil {
 		return State{}, err
 	}

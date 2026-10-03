@@ -26,7 +26,6 @@ func TestNext(t *testing.T) {
 			got, err := Next(tt.in, tt.grade, now)
 			if err != nil {
 				t.Fatalf("unknown error: %v", err)
-				return
 			}
 			if got != tt.want {
 				t.Errorf("got %+v, wait %+v", got, tt.want)
