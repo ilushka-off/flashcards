@@ -1,0 +1,712 @@
+openapi: 3.0.3
+info:
+  title: Flashcards API
+  description: |
+    REST API сервиса карточек для изучения слов (английский, испанский)
+    с интервальным повторением по алгоритму SM-2.
+
+    Общие соглашения:
+    - JSON в UTF-8, имена полей в `snake_case`.
+    - Дата и время в RFC 3339 (UTC).
+    - Длина строк считается в символах, пробелы по краям обрезаются до проверки.
+    - Необязательные строки в ответе всегда присутствуют, пустое значение — `""`.
+    - Ответ со списком — объект с полем `items`, пустой список — `[]`.
+    - Неизвестные поля в теле запроса отклоняются с 400.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Локальный запуск
+# В v1 авторизации нет: один пользователь
+security: []
+tags:
+  - name: decks
+    description: Колоды
+  - name: cards
+    description: Карточки
+  - name: review
+    description: Интервальное повторение
+  - name: stats
+    description: Статистика
+  - name: system
+    description: Служебные методы
+
+paths:
+  /decks:
+    get:
+      tags: [decks]
+      operationId: listDecks
+      summary: Список колод
+      description: Возвращает все колоды со счётчиками total_cards и due_cards, отсортированные по дате создания.
+      responses:
+        '200':
+          description: Список колод
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeckList'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [decks]
+      operationId: createDeck
+      summary: Создать колоду
+      description: Создаёт пустую колоду для изучения английского или испанского. Язык колоды после создания изменить нельзя.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeckCreate'
+      responses:
+        '201':
+          description: Колода создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /decks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      tags: [decks]
+      operationId: getDeck
+      summary: Получить колоду
+      description: Возвращает колоду по идентификатору вместе со счётчиками total_cards и due_cards.
+      responses:
+        '200':
+          description: Колода
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [decks]
+      operationId: updateDeck
+      summary: Изменить колоду
+      description: 'Частично обновляет колоду: можно передать name, description или оба поля. Язык колоды не меняется.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeckUpdate'
+      responses:
+        '200':
+          description: Колода после изменения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [decks]
+      operationId: deleteDeck
+      summary: Удалить колоду
+      description: Удаляет колоду, все её карточки и историю повторений. Действие необратимо.
+      responses:
+        '204':
+          description: Колода удалена
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /decks/{id}/cards:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      tags: [cards]
+      operationId: listCards
+      summary: Список карточек колоды
+      description: Возвращает страницу карточек колоды, новые сверху. Параметр q ищет подстроку в слове и переводе без учёта регистра. Поле total — общее число найденных карточек для пагинации.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Query'
+      responses:
+        '200':
+          description: Страница карточек
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardPage'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [cards]
+      operationId: createCard
+      summary: Добавить карточку
+      description: Создаёт карточку в колоде. Новая карточка получает начальное расписание SM-2 и сразу доступна для повторения.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardCreate'
+      responses:
+        '201':
+          description: Карточка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cards/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    patch:
+      tags: [cards]
+      operationId: updateCard
+      summary: Изменить карточку
+      description: Частично обновляет текст карточки — front, back или example. Расписание повторений не сбрасывается.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardUpdate'
+      responses:
+        '200':
+          description: Карточка после изменения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [cards]
+      operationId: deleteCard
+      summary: Удалить карточку
+      description: Удаляет карточку и её историю повторений. Действие необратимо.
+      responses:
+        '204':
+          description: Карточка удалена
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /decks/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      tags: [review]
+      operationId: getReviewQueue
+      summary: Очередь на повторение
+      description: Возвращает карточки колоды, которые пора повторить (due_at не позже текущего момента), начиная с самых просроченных. Не больше limit штук.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Очередь на повторение, может быть пустой
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueue'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cards/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    post:
+      tags: [review]
+      operationId: reviewCard
+      summary: Ответить по карточке
+      description: Принимает оценку ответа (again, hard, good, easy), пересчитывает расписание по алгоритму SM-2 и сохраняет ответ в историю. Возвращает карточку с новым due_at.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      responses:
+        '200':
+          description: Карточка с новым расписанием
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /decks/{id}/stats:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      tags: [stats]
+      operationId: getDeckStats
+      summary: Статистика колоды
+      description: 'Возвращает сводку по колоде: всего карточек, новых, к повторению, выученных (интервал от 21 дня), а также число ответов за последние 7 суток и сколько из них верных.'
+      responses:
+        '200':
+          description: Статистика колоды
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeckStats'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /healthz:
+    servers:
+      - url: http://localhost:8080
+        description: Вне базового пути /api/v1
+    get:
+      tags: [system]
+      operationId: healthz
+      summary: Проверка живости
+      description: Проверяет, что сервис запущен и база данных отвечает. Используется в healthcheck контейнера.
+      responses:
+        '200':
+          description: Сервис и база данных доступны
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: ok
+        '503':
+          description: База данных не отвечает
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: unavailable
+
+components:
+  parameters:
+    DeckId:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор колоды
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+    CardId:
+      name: id
+      in: path
+      required: true
+      description: Идентификатор карточки
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 42
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Сколько элементов вернуть
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Сколько элементов пропустить
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+    Query:
+      name: q
+      in: query
+      required: false
+      description: Подстрока для поиска в front или back без учёта регистра. Символы % и _ ищутся буквально
+      schema:
+        type: string
+        maxLength: 100
+      example: dead
+
+  responses:
+    ValidationError:
+      description: Ошибка валидации запроса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: validation_error
+              message: 'name: обязательное поле'
+    NotFound:
+      description: Сущность не найдена
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: not_found
+              message: колода не найдена
+    InternalError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: internal
+              message: внутренняя ошибка
+
+  schemas:
+    Language:
+      type: string
+      enum: [en, es]
+      description: Изучаемый язык
+      example: en
+
+    Grade:
+      type: string
+      enum: [again, hard, good, easy]
+      description: 'Оценка ответа. Числовое значение q для SM-2: again — 1, hard — 3, good — 4, easy — 5'
+      example: good
+
+    Deck:
+      type: object
+      required: [id, name, language, description, total_cards, due_cards, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор колоды
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Название колоды
+          example: English для работы
+        language:
+          $ref: '#/components/schemas/Language'
+        description:
+          type: string
+          maxLength: 500
+          description: Описание, "" если не задано
+          example: Слова из созвонов
+        total_cards:
+          type: integer
+          minimum: 0
+          description: Сколько карточек в колоде
+          example: 11
+        due_cards:
+          type: integer
+          minimum: 0
+          description: Сколько карточек с due_at не позже текущего момента, включая новые
+          example: 7
+        created_at:
+          type: string
+          format: date-time
+          description: Когда колода создана
+          example: '2026-10-03T07:30:00Z'
+
+    DeckCreate:
+      type: object
+      additionalProperties: false
+      required: [name, language]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Название колоды
+          example: English для работы
+        language:
+          $ref: '#/components/schemas/Language'
+        description:
+          type: string
+          maxLength: 500
+          default: ''
+          description: Описание колоды
+          example: Слова из созвонов
+
+    DeckUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Передаются только изменяемые поля, хотя бы одно. Поле language менять нельзя
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Новое название колоды
+          example: Business English
+        description:
+          type: string
+          maxLength: 500
+          description: Новое описание, "" очищает его
+          example: ''
+
+    DeckList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deck'
+
+    Card:
+      type: object
+      required: [id, deck_id, front, back, example, ease_factor, interval_days, repetitions, due_at, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор карточки
+          example: 42
+        deck_id:
+          type: integer
+          format: int64
+          description: Колода, к которой относится карточка
+          example: 1
+        front:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Слово или фраза на изучаемом языке
+          example: serendipity
+        back:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Перевод
+          example: счастливая случайность
+        example:
+          type: string
+          maxLength: 500
+          description: Пример употребления, "" если нет
+          example: It was pure serendipity.
+        ease_factor:
+          type: number
+          format: double
+          minimum: 1.3
+          description: Коэффициент лёгкости SM-2, два знака после запятой. У новой карточки 2.5
+          example: 2.5
+        interval_days:
+          type: integer
+          minimum: 0
+          description: Текущий интервал в днях. 0 — карточку ещё ни разу не повторяли
+          example: 1
+        repetitions:
+          type: integer
+          minimum: 0
+          description: Сколько ответов подряд было не again
+          example: 1
+        due_at:
+          type: string
+          format: date-time
+          description: Когда карточку показать снова
+          example: '2026-10-04T07:30:00Z'
+        created_at:
+          type: string
+          format: date-time
+          description: Когда карточка создана
+          example: '2026-10-03T07:30:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Последнее изменение текста или расписания
+          example: '2026-10-03T07:30:00Z'
+
+    CardCreate:
+      type: object
+      additionalProperties: false
+      required: [front, back]
+      properties:
+        front:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Слово или фраза на изучаемом языке
+          example: serendipity
+        back:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Перевод
+          example: счастливая случайность
+        example:
+          type: string
+          maxLength: 500
+          default: ''
+          description: Пример употребления
+          example: It was pure serendipity.
+
+    CardUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Передаются только изменяемые поля, хотя бы одно. Поля расписания и deck_id менять нельзя
+      properties:
+        front:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Новое слово или фраза
+          example: serendipity
+        back:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Новый перевод
+          example: счастливое стечение обстоятельств
+        example:
+          type: string
+          maxLength: 500
+          description: Новый пример, "" очищает его
+          example: ''
+
+    CardPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+        total:
+          type: integer
+          minimum: 0
+          description: Сколько карточек подходит под фильтр всего, а не на текущей странице
+          example: 1
+
+    ReviewQueue:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+
+    ReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [grade]
+      properties:
+        grade:
+          $ref: '#/components/schemas/Grade'
+
+    DeckStats:
+      type: object
+      required: [total, new, due, learned, reviews_7d, correct_7d]
+      description: Долю верных ответов клиент считает сам как correct_7d / reviews_7d
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Все карточки колоды
+          example: 11
+        new:
+          type: integer
+          minimum: 0
+          description: Карточки, которые ещё ни разу не повторяли (interval_days = 0)
+          example: 3
+        due:
+          type: integer
+          minimum: 0
+          description: Карточки с due_at не позже текущего момента, включая новые
+          example: 7
+        learned:
+          type: integer
+          minimum: 0
+          description: Карточки с интервалом от 21 дня
+          example: 1
+        reviews_7d:
+          type: integer
+          minimum: 0
+          description: Ответов по карточкам колоды за последние 7 суток
+          example: 12
+        correct_7d:
+          type: integer
+          minimum: 0
+          description: Из них ответов с оценкой не again
+          example: 9
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [validation_error, not_found, internal]
+              description: Машиночитаемый код ошибки
+              example: validation_error
+            message:
+              type: string
+              description: Текст ошибки для человека
+              example: 'front: обязательное поле'
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+          description: Состояние сервиса
+          example: ok
