@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -17,10 +18,15 @@ func toPgxMigrateURI(databaseURI string) (string, error) {
 	case strings.HasPrefix(databaseURI, "postgresql://"):
 		return "pgx5://" + strings.TrimPrefix(databaseURI, "postgresql://"), nil
 	}
-	return "", fmt.Errorf("unsupported database uri scheme: %q", databaseURI)
+	uriParse, err := url.Parse(databaseURI)
+	if err != nil {
+		return "", fmt.Errorf("parse uri: %w", err)
+	}
+	uriSchema := uriParse.Scheme
+	return "", fmt.Errorf("unsupported database uri scheme: %q", uriSchema)
 }
 
-func Run(databaseURI string) error {
+func RunMigrations(databaseURI string) error {
 	sourceDriver, err := iofs.New(migrationFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("create migrations source: %w", err)
