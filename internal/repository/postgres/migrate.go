@@ -3,29 +3,38 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
-	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
+// errInvalidDatabaseURI возвращается вместо ошибки url.Parse:
+// та содержит исходную строку целиком, вместе с паролем.
+var errInvalidDatabaseURI = errors.New("invalid database uri")
+
+// toPgxMigrateURI меняет схему postgres:// или postgresql:// на pgx5://,
+// которую понимает драйвер golang-migrate для pgx/v5.
 func toPgxMigrateURI(databaseURI string) (string, error) {
-	switch {
-	case strings.HasPrefix(databaseURI, "postgres://"):
-		return "pgx5://" + strings.TrimPrefix(databaseURI, "postgres://"), nil
-	case strings.HasPrefix(databaseURI, "postgresql://"):
-		return "pgx5://" + strings.TrimPrefix(databaseURI, "postgresql://"), nil
-	}
-	uriParse, err := url.Parse(databaseURI)
+	u, err := url.Parse(databaseURI)
 	if err != nil {
-		return "", fmt.Errorf("parse uri: %w", err)
+		return "", errInvalidDatabaseURI
 	}
-	uriSchema := uriParse.Scheme
-	return "", fmt.Errorf("unsupported database uri scheme: %q", uriSchema)
+
+	switch u.Scheme {
+	case "postgres", "postgresql":
+		u.Scheme = "pgx5"
+		return u.String(), nil
+	default:
+		return "", fmt.Errorf("unsupported database uri scheme: %q", u.Scheme)
+	}
 }
 
+// RunMigrations применяет все новые миграции из встроенных SQL-файлов.
+// databaseURI — строка вида postgres://user:pass@host:port/db.
+// Если применять нечего, это не ошибка.
 func RunMigrations(databaseURI string) error {
 	sourceDriver, err := iofs.New(migrationFS, "migrations")
 	if err != nil {
@@ -42,10 +51,14 @@ func RunMigrations(databaseURI string) error {
 		return fmt.Errorf("create migrator: %w", err)
 	}
 
-	defer migrator.Close()
+	defer func() {
+		srcErr, dbErr := migrator.Close()
+		if closeErr := errors.Join(srcErr, dbErr); closeErr != nil {
+			slog.Warn("close migrator", "err", closeErr)
+		}
+	}()
 
-	err = migrator.Up()
-	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	if err := migrator.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("apply migrations: %w", err)
 	}
 	return nil

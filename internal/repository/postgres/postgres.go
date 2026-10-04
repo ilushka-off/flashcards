@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// pingTimeout ограничивает проверку соединения при старте:
+// если база не ответила за это время, сервис падает с ошибкой, а не висит.
 const (
 	pingTimeout = 5 * time.Second
 )
