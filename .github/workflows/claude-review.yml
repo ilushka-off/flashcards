@@ -50,6 +50,12 @@ jobs:
             Post the summary with `gh pr comment`.
             Post line comments with `mcp__github_inline_comment__create_inline_comment` and `confirmed: true`.
             Write only GitHub comments; do not reply with text.
+            
+            After posting comments, decide the review verdict:
+            - If there are no open findings of category Баг, Безопасность or Контракт
+            (from this review or unresolved from previous ones), approve:
+            gh pr review "${{ github.event.pull_request.number }}" --approve --body "Замечаний, блокирующих мерж, нет."
+            - Otherwise do not approve and do not request changes; the summary comment is enough.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*),Bash(gh pr review:*)"
