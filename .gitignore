@@ -33,4 +33,4 @@ go.work.sum
 # .vscode/
 
 # Binaries
-main
+./cmd/api/

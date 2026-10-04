@@ -18,7 +18,6 @@ func main() {
 }
 
 func run() error {
-
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -35,5 +34,5 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("http server: %w", err)
 	}
-	return err
+	return nil
 }

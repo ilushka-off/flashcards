@@ -47,9 +47,9 @@ func Load() (Config, error) {
 		}
 	}
 
-	flag.IntVar(&cfg.HTTPPort, "p", httpPort, "HTTP server address")
-	flag.StringVar(&cfg.DatabaseURI, "d", databaseURI, "Database URL connection")
-	flag.TextVar(&cfg.LogLevel, "l", logLevel, "log level: debug, info, warn, error")
+	flag.IntVar(&cfg.HTTPPort, "port", httpPort, "Server port")
+	flag.StringVar(&cfg.DatabaseURI, "db", databaseURI, "Database URI connection")
+	flag.TextVar(&cfg.LogLevel, "log", logLevel, "log level: debug, info, warn, error")
 	flag.Parse()
 
 	if cfg.DatabaseURI == "" {
