@@ -1,0 +1,55 @@
+name: Claude Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - ready_for_review
+      - synchronize
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BRANCH: ${{ github.head_ref }}
+            EVENT: ${{ github.event.action }}
+
+            If EVENT is `opened` or `ready_for_review`, first update the PR title and description:
+            `gh pr edit ${{ github.event.pull_request.number }} --title "..." --body "..."`
+            - Title: `FC-N: <what was done, in Russian>`. Take N from the branch name, no leading zero.
+            - Body in Russian, exactly these sections:
+              ## Было
+              ## Стало
+              ## Что внутри
+              ## Как проверить
+              ## Задача
+              FC-N
+            - Do not add links to Claude or "Generated with" lines.
+            If EVENT is `synchronize`, do not touch the title or description.
+
+            Then review this PR according to the rules in REVIEW.md.
+            Post the summary with `gh pr comment`.
+            Post line comments with `mcp__github_inline_comment__create_inline_comment` and `confirmed: true`.
+            Write only GitHub comments; do not reply with text.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*)"
