@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -21,18 +20,20 @@ var (
 	ErrDatabaseURINotFound = errors.New("database uri not found")
 )
 
+// Load собирает конфигурацию из переменных окружения
+// HTTP_PORT, DATABASE_URI, LOG_LEVEL.
 func Load() (Config, error) {
-	var cfg Config
 
-	var httpPort int
+	httpPort := 8080
 	if v, ok := os.LookupEnv("HTTP_PORT"); ok {
-
 		var err error
-
 		httpPort, err = strconv.Atoi(v)
 		if err != nil {
-			return cfg, fmt.Errorf("invalid port: %w", err)
+			return Config{}, fmt.Errorf("HTTP_PORT: %w", err)
 		}
+	}
+	if httpPort < 1 || httpPort > 65535 {
+		return Config{}, fmt.Errorf("HTTP_PORT: must be between 1 and 65535, got %d", httpPort)
 	}
 
 	var databaseURI string
@@ -47,14 +48,13 @@ func Load() (Config, error) {
 		}
 	}
 
-	flag.IntVar(&cfg.HTTPPort, "port", httpPort, "Server port")
-	flag.StringVar(&cfg.DatabaseURI, "db", databaseURI, "Database URI connection")
-	flag.TextVar(&cfg.LogLevel, "log", logLevel, "log level: debug, info, warn, error")
-	flag.Parse()
-
-	if cfg.DatabaseURI == "" {
+	if databaseURI == "" {
 		return Config{}, ErrDatabaseURINotFound
 	}
 
-	return cfg, nil
+	return Config{
+		HTTPPort:    httpPort,
+		DatabaseURI: databaseURI,
+		LogLevel:    logLevel,
+	}, nil
 }
