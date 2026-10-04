@@ -34,7 +34,7 @@ jobs:
             EVENT: ${{ github.event.action }}
 
             If EVENT is `opened` or `ready_for_review`, first update the PR title and description:
-            gh pr edit "${{ github.event.pull_request.number }}" --title "..." --body "..."
+            gh pr edit "${{ github.event.pull_request.number }}" --title "..." --body-file -
             - Title: `FC-N: <what was done, in Russian>`. Take N from the branch name, no leading zero.
             - Body in Russian, exactly these sections:
               ## Было
