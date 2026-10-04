@@ -35,12 +35,12 @@ func run() error {
 
 	err = postgres.RunMigrations(cfg.DatabaseURI)
 	if err != nil {
-		return err
+		return fmt.Errorf("run migrations: %w", err)
 	}
 
 	pool, err := postgres.OpenPool(context.Background(), cfg.DatabaseURI)
 	if err != nil {
-		return err
+		return fmt.Errorf("open pool: %w", err)
 	}
 	defer pool.Close()
 

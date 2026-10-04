@@ -14,6 +14,8 @@ const (
 	pingTimeout = 5 * time.Second
 )
 
+// OpenPool создаёт пул соединений к PostgreSQL по databaseURI
+// и проверяет, что база отвечает. При ошибке пул закрывается.
 func OpenPool(ctx context.Context, databaseURI string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, databaseURI)
 	if err != nil {
