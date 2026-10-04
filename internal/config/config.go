@@ -23,7 +23,6 @@ var (
 // Load собирает конфигурацию из переменных окружения
 // HTTP_PORT, DATABASE_URI, LOG_LEVEL.
 func Load() (Config, error) {
-
 	httpPort := 8080
 	if v, ok := os.LookupEnv("HTTP_PORT"); ok {
 		var err error
