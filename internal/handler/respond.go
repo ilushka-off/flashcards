@@ -12,6 +12,7 @@ const (
 	CodeNotFound   = "not_found"
 	CodeInternal   = "internal"
 )
+
 const msgInternal = "внутренняя ошибка"
 
 type errorBody struct {

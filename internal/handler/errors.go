@@ -8,6 +8,8 @@ import (
 	"github.com/ilushka-off/flashcards/internal/domain"
 )
 
+// writeServiceError переводит ошибку сервиса в HTTP-ответ.
+// notFoundMsg — текст для клиента, если сущность не найдена, например "колода не найдена".
 func writeServiceError(w http.ResponseWriter, r *http.Request, err error, notFoundMsg string) {
 	var verr *domain.ValidationError
 	switch {

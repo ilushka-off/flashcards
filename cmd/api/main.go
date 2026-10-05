@@ -59,12 +59,12 @@ func healthzHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), healthzTimeout)
 		defer cancel()
 
-		status, code := 200, http.StatusOK
+		status, code := "ok", http.StatusOK
 		if err := pool.Ping(ctx); err != nil {
 			slog.Warn("healthz: database unavailable", "err", err)
-			status, code = 503, http.StatusServiceUnavailable
+			status, code = "unavailable", http.StatusServiceUnavailable
 		}
 
-		handler.WriteJSON(w, status, code)
+		handler.WriteJSON(w, code, status)
 	}
 }
