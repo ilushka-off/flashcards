@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ilushka-off/flashcards/internal/config"
+	"github.com/ilushka-off/flashcards/internal/handler"
 	"github.com/ilushka-off/flashcards/internal/repository/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -59,14 +59,12 @@ func healthzHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), healthzTimeout)
 		defer cancel()
 
-		status, code := "ok", http.StatusOK
+		status, code := 200, http.StatusOK
 		if err := pool.Ping(ctx); err != nil {
 			slog.Warn("healthz: database unavailable", "err", err)
-			status, code = "unavailable", http.StatusServiceUnavailable
+			status, code = 503, http.StatusServiceUnavailable
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(code)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
+		handler.WriteJSON(w, status, code)
 	}
 }
