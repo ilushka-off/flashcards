@@ -11,6 +11,7 @@ import (
 	"github.com/ilushka-off/flashcards/internal/config"
 	"github.com/ilushka-off/flashcards/internal/handler"
 	"github.com/ilushka-off/flashcards/internal/repository/postgres"
+	"github.com/ilushka-off/flashcards/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -44,8 +45,13 @@ func run() error {
 	}
 	defer pool.Close()
 
+	deckRepository := postgres.NewDeckRepository(pool)
+	deckService := service.NewDeckService(deckRepository)
+	deckHandler := handler.NewDeckHandler(deckService)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler(pool))
+	mux.HandleFunc("POST /api/v1/decks", deckHandler.Create)
 
 	slog.Info("server started", "port", cfg.HTTPPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.HTTPPort), mux); err != nil {
