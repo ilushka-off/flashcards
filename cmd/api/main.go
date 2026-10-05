@@ -65,6 +65,6 @@ func healthzHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			status, code = "unavailable", http.StatusServiceUnavailable
 		}
 
-		handler.WriteJSON(w, code, status)
+		handler.WriteJSON(w, code, map[string]string{"status": status})
 	}
 }
