@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ilushka-off/flashcards/internal/config"
+	"github.com/ilushka-off/flashcards/internal/handler"
 	"github.com/ilushka-off/flashcards/internal/repository/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -65,8 +65,6 @@ func healthzHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			status, code = "unavailable", http.StatusServiceUnavailable
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(code)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
+		handler.WriteJSON(w, code, map[string]string{"status": status})
 	}
 }
