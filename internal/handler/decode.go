@@ -10,9 +10,15 @@ import (
 	"github.com/ilushka-off/flashcards/internal/domain"
 )
 
+// maxBodyBytes ограничивает размер тела запроса. Самый большой валидный
+// запрос (колода или карточка) занимает пару килобайт, 1 МБ — с запасом.
+const maxBodyBytes = 1 << 20
+
 // decodeJSON читает тело запроса в dst. Ошибки разбора возвращает
 // как *domain.ValidationError с текстами из спеки.
-func decodeJSON(r *http.Request, dst any) error {
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 

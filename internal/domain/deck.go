@@ -17,7 +17,7 @@ type DeckCreate struct {
 	Description string   `json:"description"`
 }
 
-// Deck - колода со счётчиками карточек, как её отдаёт API.
+// Deck — колода со счётчиками карточек, как её отдаёт API.
 type Deck struct {
 	ID          int64     `json:"id"`
 	Name        string    `json:"name"`

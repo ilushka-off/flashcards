@@ -20,7 +20,6 @@ func NewDeckRepository(pool *pgxpool.Pool) *DeckRepository {
 }
 
 func (r *DeckRepository) CreateDeck(ctx context.Context, in domain.DeckCreate) (domain.Deck, error) {
-
 	var deckID int64
 	var createdAt time.Time
 

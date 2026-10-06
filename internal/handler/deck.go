@@ -24,7 +24,7 @@ func NewDeckHandler(decks DeckService) *DeckHandler {
 func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var in domain.DeckCreate
 
-	if err := decodeJSON(r, &in); err != nil {
+	if err := decodeJSON(w, r, &in); err != nil {
 		writeServiceError(w, r, err, "")
 		return
 	}
