@@ -47,7 +47,7 @@ func run() error {
 
 	deckRepository := postgres.NewDeckRepository(pool)
 	deckService := service.NewDeckService(deckRepository)
-	deckHandler := handler.NewDeckHandler(deckService)
+	deckHandler := handler.NewDeckHandler(deckService, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler(pool))
