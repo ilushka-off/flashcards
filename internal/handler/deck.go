@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
@@ -12,12 +13,14 @@ type DeckService interface {
 }
 
 type DeckHandler struct {
-	decks DeckService
+	decks  DeckService
+	logger *slog.Logger
 }
 
-func NewDeckHandler(decks DeckService) *DeckHandler {
+func NewDeckHandler(decks DeckService, logger *slog.Logger) *DeckHandler {
 	return &DeckHandler{
-		decks: decks,
+		decks:  decks,
+		logger: logger,
 	}
 }
 
@@ -26,12 +29,14 @@ func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err := decodeJSON(w, r, &in); err != nil {
 		writeServiceError(w, r, err, "")
+		h.logger.Error("could not decode request body", "error", err)
 		return
 	}
 
 	deck, err := h.decks.Create(r.Context(), in)
 	if err != nil {
 		writeServiceError(w, r, err, "")
+		h.logger.Error("failed to create deck", "error", err)
 		return
 	}
 	WriteJSON(w, http.StatusCreated, deck)

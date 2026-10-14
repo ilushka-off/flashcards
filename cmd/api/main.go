@@ -10,6 +10,7 @@ import (
 
 	"github.com/ilushka-off/flashcards/internal/config"
 	"github.com/ilushka-off/flashcards/internal/handler"
+	"github.com/ilushka-off/flashcards/internal/middleware"
 	"github.com/ilushka-off/flashcards/internal/repository/postgres"
 	"github.com/ilushka-off/flashcards/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,14 +48,16 @@ func run() error {
 
 	deckRepository := postgres.NewDeckRepository(pool)
 	deckService := service.NewDeckService(deckRepository)
-	deckHandler := handler.NewDeckHandler(deckService)
+	deckHandler := handler.NewDeckHandler(deckService, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler(pool))
 	mux.HandleFunc("POST /api/v1/decks", deckHandler.Create)
 
+	h := middleware.Logger(logger)(mux)
+
 	slog.Info("server started", "port", cfg.HTTPPort)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.HTTPPort), mux); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.HTTPPort), h); err != nil {
 		return fmt.Errorf("http server: %w", err)
 	}
 	return nil
