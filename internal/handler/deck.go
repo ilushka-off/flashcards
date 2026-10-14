@@ -29,14 +29,14 @@ func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err := decodeJSON(w, r, &in); err != nil {
 		writeServiceError(w, r, err, "")
-		h.logger.Error("could not decode request body", err)
+		h.logger.Error("could not decode request body", "error", err)
 		return
 	}
 
 	deck, err := h.decks.Create(r.Context(), in)
 	if err != nil {
 		writeServiceError(w, r, err, "")
-		h.logger.Error("failed to create deck", err)
+		h.logger.Error("failed to create deck", "error", err)
 		return
 	}
 	WriteJSON(w, http.StatusCreated, deck)

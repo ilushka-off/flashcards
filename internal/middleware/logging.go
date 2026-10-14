@@ -22,7 +22,7 @@ func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 			start := time.Now()
 
 			lw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(lw, r)
 
 			duration := time.Since(start)
 
@@ -31,7 +31,6 @@ func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"duration", duration,
 				"http_status_code", lw.statusCode)
-
 		})
 	}
 }
