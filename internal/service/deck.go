@@ -67,8 +67,8 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate) (domain.
 	return deck, nil
 }
 
-func (s *DeckService) GetByID(ctx context.Context, in int64) (domain.Deck, error) {
-	deck, err := s.decks.GetDeckByID(ctx, in)
+func (s *DeckService) GetByID(ctx context.Context, deckID int64) (domain.Deck, error) {
+	deck, err := s.decks.GetDeckByID(ctx, deckID)
 	if err != nil {
 		return domain.Deck{}, err
 	}

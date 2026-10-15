@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
 )
@@ -47,10 +46,7 @@ func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-
-	str := strings.TrimSpace(r.PathValue("id"))
-
-	deckID, err := strconv.ParseInt(str, 10, 64)
+	deckID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || deckID < 1 {
 		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректный id в path запросе")
 		return

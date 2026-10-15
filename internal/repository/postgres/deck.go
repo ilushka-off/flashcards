@@ -77,14 +77,20 @@ func (r *DeckRepository) GetDeckList(ctx context.Context) ([]domain.Deck, error)
 func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64) (domain.Deck, error) {
 	var deck domain.Deck
 
-	query := `SELECT id, name, language, description, created_at FROM decks WHERE id = $1`
+	query := `SELECT d.id, d."name", d."language", d.description, COUNT(c.id) AS total_cards, COUNT(c.id) FILTER(WHERE c.due_at <= now()) AS due_cards, d.created_at
+				FROM decks d
+				LEFT JOIN cards c ON d.id = c.deck_id
+				WHERE d.id = $1
+				GROUP BY d.id, d."name", d."language", d.description
+				ORDER BY d.created_at DESC, d.id
+`
 	err := r.pool.QueryRow(ctx, query, deckID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.CreatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Deck{}, domain.ErrNotFound
 	}
 	if err != nil {
-		return domain.Deck{}, fmt.Errorf("get decks by id: %w", err)
+		return domain.Deck{}, fmt.Errorf("get deck by id: %w", err)
 	}
 
 	deck.CreatedAt = deck.CreatedAt.UTC()
