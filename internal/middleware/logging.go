@@ -29,7 +29,7 @@ func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 			log.Info("HTTP request info",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"duration", duration,
+				"duration", duration.Seconds(),
 				"http_status_code", lw.statusCode)
 		})
 	}

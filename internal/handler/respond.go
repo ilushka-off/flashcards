@@ -24,6 +24,10 @@ type errorDetail struct {
 	Message string `json:"message"`
 }
 
+type Items[T any] struct {
+	Items []T `json:"items"`
+}
+
 // WriteJSON пишет v как JSON с указанным статусом.
 func WriteJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

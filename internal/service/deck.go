@@ -11,6 +11,8 @@ import (
 // DeckRepository — то, что сервису нужно от хранилища колод.
 type DeckRepository interface {
 	CreateDeck(ctx context.Context, in domain.DeckCreate) (domain.Deck, error)
+	GetDeckByID(ctx context.Context, deckID int64) (domain.Deck, error)
+	GetDeckList(ctx context.Context) ([]domain.Deck, error)
 }
 
 const (
@@ -63,4 +65,20 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate) (domain.
 		return domain.Deck{}, err
 	}
 	return deck, nil
+}
+
+func (s *DeckService) GetByID(ctx context.Context, in int64) (domain.Deck, error) {
+	deck, err := s.decks.GetDeckByID(ctx, in)
+	if err != nil {
+		return domain.Deck{}, err
+	}
+	return deck, nil
+}
+
+func (s *DeckService) GetList(ctx context.Context) ([]domain.Deck, error) {
+	decks, err := s.decks.GetDeckList(ctx)
+	if err != nil {
+		return []domain.Deck{}, err
+	}
+	return decks, nil
 }
