@@ -11,7 +11,7 @@ import (
 
 type DeckService interface {
 	Create(ctx context.Context, in domain.DeckCreate) (domain.Deck, error)
-	GetByID(ctx context.Context, in int64) (domain.Deck, error)
+	GetByID(ctx context.Context, deckID int64) (domain.Deck, error)
 	GetList(ctx context.Context) ([]domain.Deck, error)
 }
 

@@ -82,8 +82,8 @@ func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64) (domain.
 				LEFT JOIN cards c ON d.id = c.deck_id
 				WHERE d.id = $1
 				GROUP BY d.id, d."name", d."language", d.description
-				ORDER BY d.created_at DESC, d.id
-`
+				ORDER BY d.created_at DESC, d.id`
+
 	err := r.pool.QueryRow(ctx, query, deckID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.TotalCards, &deck.DueCards, &deck.CreatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
