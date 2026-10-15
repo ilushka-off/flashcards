@@ -53,6 +53,8 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler(pool))
 	mux.HandleFunc("POST /api/v1/decks", deckHandler.Create)
+	mux.HandleFunc("GET /api/v1/decks/{id}", deckHandler.GetByID)
+	mux.HandleFunc("GET /api/v1/decks", deckHandler.GetList)
 
 	h := middleware.Logger(logger)(mux)
 
