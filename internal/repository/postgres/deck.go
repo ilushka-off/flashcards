@@ -84,7 +84,7 @@ func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64) (domain.
 				GROUP BY d.id, d."name", d."language", d.description
 				ORDER BY d.created_at DESC, d.id
 `
-	err := r.pool.QueryRow(ctx, query, deckID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.CreatedAt)
+	err := r.pool.QueryRow(ctx, query, deckID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.TotalCards, &deck.DueCards, &deck.CreatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Deck{}, domain.ErrNotFound
