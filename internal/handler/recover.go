@@ -12,12 +12,19 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
-				if rec := recover(); rec != nil {
-					logger.ErrorContext(r.Context(), "panic recovered",
-						"err", rec,
-						"stack", string(debug.Stack()))
-					WriteError(w, http.StatusInternalServerError, CodeInternal, msgInternal)
+				rec := recover()
+				if rec == nil {
+					return
 				}
+				// http.ErrAbortHandler — штатный сигнал прервать обработчик, а не сбой;
+				// пробрасываем его дальше, чтобы сервер отработал как задумано.
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
+				logger.ErrorContext(r.Context(), "panic recovered",
+					"err", rec,
+					"stack", string(debug.Stack()))
+				WriteError(w, http.StatusInternalServerError, CodeInternal, msgInternal)
 			}()
 			next.ServeHTTP(w, r)
 		})
