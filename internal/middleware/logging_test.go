@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -39,11 +38,15 @@ func TestLoggerLogsRequest(t *testing.T) {
 			var buf bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
-			h := Logger(logger)(tt.handler)
+			// Прогоняем через настоящий chi-роутер, иначе RoutePattern() пуст:
+			// паттерн попадает в RouteContext только при матчинге маршрута.
+			r := chi.NewRouter()
+			r.Use(Logger(logger))
+			r.Get("/api/v1/decks/{id}", tt.handler)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/1", nil)
-			h.ServeHTTP(rec, req)
+			r.ServeHTTP(rec, req)
 
 			var entry map[string]any
 			if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
@@ -58,8 +61,8 @@ func TestLoggerLogsRequest(t *testing.T) {
 			if entry["path"] != "/api/v1/decks/1" {
 				t.Errorf("path = %v, want /api/v1/decks/1", entry["path"])
 			}
-			if entry["route"] != chi.RouteContext(context.Background()).RoutePattern() {
-				t.Errorf("route = %v, want /api/v1/decks/", entry["route"])
+			if entry["route"] != "/api/v1/decks/{id}" {
+				t.Errorf("route = %v, want /api/v1/decks/{id}", entry["route"])
 			}
 		})
 	}
