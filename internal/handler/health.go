@@ -15,11 +15,13 @@ type pinger interface {
 	Ping(context.Context) error
 }
 
+// HealthHandler обслуживает проверку живости: отвечает о доступности сервиса и базы данных.
 type HealthHandler struct {
 	db     pinger
 	logger *slog.Logger
 }
 
+// NewHealthHandler создаёт HealthHandler поверх pinger (обычно пула БД) и логгера.
 func NewHealthHandler(db pinger, logger *slog.Logger) *HealthHandler {
 	return &HealthHandler{
 		db:     db,
@@ -27,6 +29,8 @@ func NewHealthHandler(db pinger, logger *slog.Logger) *HealthHandler {
 	}
 }
 
+// Check пингует базу в пределах healthTimeout и отвечает 200 со status "ok",
+// либо 503 со status "unavailable", если база не ответила.
 func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), healthTimeout)
 	defer cancel()
