@@ -40,6 +40,20 @@ func TestRouterGetByIDReachesHandler(t *testing.T) {
 	}
 }
 
+func TestRouterUnknownPathReturns404(t *testing.T) {
+	router := newTestRouter(&fakeDeckService{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/unknown", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+	// Контракт openapi.yaml: любая ошибка, включая 404, — в формате Error.
+	assertErrorBody(t, rec, CodeNotFound)
+}
+
 // assertErrorBody checks the response uses the unified FC-6 error envelope
 // {"error":{"code","message"}} with the expected code and a non-empty message.
 func assertErrorBody(t *testing.T, rec *httptest.ResponseRecorder, wantCode string) {

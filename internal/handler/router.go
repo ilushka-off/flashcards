@@ -15,6 +15,8 @@ func NewRouter(decksHandler *DeckHandler, healthHandler *HealthHandler, logger *
 	r := chi.NewRouter()
 	r.Use(middleware.Logger(logger))
 
+	r.NotFound(notFound)
+
 	r.Get("/health", healthHandler.Check)
 
 	r.Route("/api/v1", func(r chi.Router) {
