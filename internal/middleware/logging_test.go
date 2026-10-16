@@ -2,11 +2,14 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func TestLoggerLogsRequest(t *testing.T) {
@@ -54,6 +57,9 @@ func TestLoggerLogsRequest(t *testing.T) {
 			}
 			if entry["path"] != "/api/v1/decks/1" {
 				t.Errorf("path = %v, want /api/v1/decks/1", entry["path"])
+			}
+			if entry["route"] != chi.RouteContext(context.Background()).RoutePattern() {
+				t.Errorf("route = %v, want /api/v1/decks/", entry["route"])
 			}
 		})
 	}

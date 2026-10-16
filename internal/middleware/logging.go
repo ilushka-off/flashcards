@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type loggingResponseWriter struct {
@@ -28,6 +30,7 @@ func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 
 			log.Info("HTTP request info",
 				"method", r.Method,
+				"route", chi.RouteContext(r.Context()).RoutePattern(),
 				"path", r.URL.Path,
 				"duration", duration.Seconds(),
 				"http_status_code", lw.statusCode)
