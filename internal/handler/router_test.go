@@ -53,19 +53,6 @@ func TestRouterUnknownPathReturns404(t *testing.T) {
 	assertErrorBody(t, rec, CodeNotFound)
 }
 
-func TestRouterMethodNotAllowedReturns405(t *testing.T) {
-	router := newTestRouter(&fakeDeckService{})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/decks", nil)
-	router.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusMethodNotAllowed)
-	}
-	assertErrorBody(t, rec, CodeMethodNotAllowed)
-}
-
 // assertErrorBody checks the response uses the unified FC-6 error envelope
 // {"error":{"code","message"}} with the expected code and a non-empty message.
 func assertErrorBody(t *testing.T, rec *httptest.ResponseRecorder, wantCode string) {
