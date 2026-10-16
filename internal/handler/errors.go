@@ -26,7 +26,3 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error, notFou
 func notFound(w http.ResponseWriter, r *http.Request) {
 	WriteError(w, http.StatusNotFound, CodeNotFound, "ресурс не найден")
 }
-
-func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
-	WriteError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "метод не поддерживается")
-}

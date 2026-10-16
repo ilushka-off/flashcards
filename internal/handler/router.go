@@ -12,7 +12,6 @@ func NewRouter(decksHandler *DeckHandler, healthHandler *HealthHandler, logger *
 	r := chi.NewRouter()
 	r.Use(middleware.Logger(logger))
 
-	r.MethodNotAllowed(methodNotAllowed)
 	r.NotFound(notFound)
 
 	r.Get("/health", healthHandler.Check)
