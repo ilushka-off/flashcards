@@ -693,7 +693,7 @@ components:
           properties:
             code:
               type: string
-              enum: [validation_error, not_found, method_not_allowed, internal]
+              enum: [validation_error, not_found, internal]
               description: Машиночитаемый код ошибки
               example: validation_error
             message:
