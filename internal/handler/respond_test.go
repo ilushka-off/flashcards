@@ -71,7 +71,7 @@ func TestWriteServiceError(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/decks/42", nil)
 
-			writeServiceError(rec, req, tt.err, "колода не найдена")
+			writeServiceError(rec, req, discardLogger(), tt.err, "колода не найдена")
 
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)

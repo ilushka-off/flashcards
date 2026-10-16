@@ -31,15 +31,13 @@ func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var in domain.DeckCreate
 
 	if err := decodeJSON(w, r, &in); err != nil {
-		writeServiceError(w, r, err, "")
-		h.logger.Error("could not decode request body", "error", err)
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 
 	deck, err := h.decks.Create(r.Context(), in)
 	if err != nil {
-		writeServiceError(w, r, err, "")
-		h.logger.Error("failed to create deck", "error", err)
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 	WriteJSON(w, http.StatusCreated, deck)
@@ -54,7 +52,7 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	deck, err := h.decks.GetByID(r.Context(), deckID)
 	if err != nil {
-		writeServiceError(w, r, err, "колода не найдена")
+		writeServiceError(w, r, h.logger, err, "колода не найдена")
 		return
 	}
 	WriteJSON(w, http.StatusOK, deck)
@@ -63,7 +61,7 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 func (h *DeckHandler) GetList(w http.ResponseWriter, r *http.Request) {
 	decks, err := h.decks.GetList(r.Context())
 	if err != nil {
-		writeServiceError(w, r, err, "")
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 	WriteJSON(w, http.StatusOK, Items[domain.Deck]{Items: decks})

@@ -28,7 +28,8 @@ func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 
 			duration := time.Since(start)
 
-			log.Info("HTTP request info",
+			// InfoContext — чтобы обёртка ContextHandler подставила request_id.
+			log.InfoContext(r.Context(), "HTTP request info",
 				"method", r.Method,
 				"route", chi.RouteContext(r.Context()).RoutePattern(),
 				"path", r.URL.Path,

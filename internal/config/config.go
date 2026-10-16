@@ -8,11 +8,18 @@ import (
 	"strconv"
 )
 
+// Форматы вывода логов для LOG_FORMAT.
+const (
+	LogFormatJSON = "json"
+	LogFormatText = "text"
+)
+
 // Config — параметры запуска сервиса.
 type Config struct {
 	HTTPPort    int
 	DatabaseURI string
 	LogLevel    slog.Level
+	LogFormat   string
 }
 
 // ErrDatabaseURINotFound Ошибка конфигурации, при которых сервис не может быть запущен.
@@ -21,7 +28,7 @@ var (
 )
 
 // Load собирает конфигурацию из переменных окружения
-// HTTP_PORT, DATABASE_URI, LOG_LEVEL.
+// HTTP_PORT, DATABASE_URI, LOG_LEVEL, LOG_FORMAT.
 func Load() (Config, error) {
 	httpPort := 8080
 	if v, ok := os.LookupEnv("HTTP_PORT"); ok {
@@ -51,9 +58,18 @@ func Load() (Config, error) {
 		return Config{}, ErrDatabaseURINotFound
 	}
 
+	logFormat := LogFormatJSON
+	if v, ok := os.LookupEnv("LOG_FORMAT"); ok {
+		logFormat = v
+	}
+	if logFormat != LogFormatJSON && logFormat != LogFormatText {
+		return Config{}, fmt.Errorf("LOG_FORMAT: must be %s or %s, got %q", LogFormatJSON, LogFormatText, logFormat)
+	}
+
 	return Config{
 		HTTPPort:    httpPort,
 		DatabaseURI: databaseURI,
 		LogLevel:    logLevel,
+		LogFormat:   logFormat,
 	}, nil
 }

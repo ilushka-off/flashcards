@@ -19,6 +19,8 @@ func TestLoad(t *testing.T) {
 		wantPort     int
 		wantDB       string
 		wantLogLevel slog.Level
+		// wantLogFormat пустой означает ожидаемый дефолт "json".
+		wantLogFormat string
 	}{
 		{
 			name:         "defaults when only database uri is set",
@@ -26,6 +28,19 @@ func TestLoad(t *testing.T) {
 			wantPort:     8080,
 			wantDB:       validDB,
 			wantLogLevel: slog.LevelInfo,
+		},
+		{
+			name:          "log format text from environment",
+			env:           map[string]string{"DATABASE_URI": validDB, "LOG_FORMAT": "text"},
+			wantPort:      8080,
+			wantDB:        validDB,
+			wantLogLevel:  slog.LevelInfo,
+			wantLogFormat: "text",
+		},
+		{
+			name:        "unknown log format",
+			env:         map[string]string{"DATABASE_URI": validDB, "LOG_FORMAT": "xml"},
+			wantErrText: "LOG_FORMAT",
 		},
 		{
 			name: "all values from environment",
@@ -135,6 +150,13 @@ func TestLoad(t *testing.T) {
 				if got.LogLevel != tt.wantLogLevel {
 					t.Errorf("LogLevel = %v, want %v", got.LogLevel, tt.wantLogLevel)
 				}
+				wantFormat := tt.wantLogFormat
+				if wantFormat == "" {
+					wantFormat = "json"
+				}
+				if got.LogFormat != wantFormat {
+					t.Errorf("LogFormat = %q, want %q", got.LogFormat, wantFormat)
+				}
 			}
 		})
 	}
@@ -144,7 +166,7 @@ func TestLoad(t *testing.T) {
 // starts from a clean slate. t.Setenv registers restoration after the test.
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
-	for _, name := range []string{"HTTP_PORT", "DATABASE_URI", "LOG_LEVEL"} {
+	for _, name := range []string{"HTTP_PORT", "DATABASE_URI", "LOG_LEVEL", "LOG_FORMAT"} {
 		t.Setenv(name, "")
 		if err := os.Unsetenv(name); err != nil {
 			t.Fatalf("unset %s: %v", name, err)

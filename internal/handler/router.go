@@ -8,12 +8,14 @@ import (
 	"github.com/ilushka-off/flashcards/internal/middleware"
 )
 
-// NewRouter собирает маршруты API на chi и возвращает готовый http.Handler:
-// подключает middleware логирования запросов, отдаёт /health и группу
-// /api/v1/decks, а неизвестные пути — как 404 в едином формате ошибок API.
+// NewRouter собирает маршруты API на chi и возвращает готовый http.Handler.
+// Цепочка middleware: RequestID → Logging → Recover → mux, затем /health и
+// группа /api/v1/decks; неизвестные пути — 404 в едином формате ошибок API.
 func NewRouter(decksHandler *DeckHandler, healthHandler *HealthHandler, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
+	r.Use(Recover(logger))
 
 	r.NotFound(notFound)
 
