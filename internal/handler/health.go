@@ -38,7 +38,7 @@ func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
 	status, code := "ok", http.StatusOK
 
 	if err := h.db.Ping(ctx); err != nil {
-		h.logger.Warn("database unavailable", "err", err)
+		h.logger.WarnContext(ctx, "database unavailable", "err", err)
 		status, code = "unavailable", http.StatusServiceUnavailable
 	}
 
