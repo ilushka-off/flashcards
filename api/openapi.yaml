@@ -295,13 +295,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /healthz:
+  /health:
     servers:
       - url: http://localhost:8080
         description: Вне базового пути /api/v1
     get:
       tags: [system]
-      operationId: healthz
+      operationId: health
       summary: Проверка живости
       description: Проверяет, что сервис запущен и база данных отвечает. Используется в healthcheck контейнера.
       responses:

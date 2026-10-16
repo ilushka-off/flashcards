@@ -22,3 +22,9 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error, notFou
 		WriteError(w, http.StatusInternalServerError, CodeInternal, msgInternal)
 	}
 }
+
+// notFound отвечает на неизвестный путь 404 в едином формате ошибок API,
+// вместо текстового ответа chi по умолчанию.
+func notFound(w http.ResponseWriter, r *http.Request) {
+	WriteError(w, http.StatusNotFound, CodeNotFound, "ресурс не найден")
+}
