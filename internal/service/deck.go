@@ -78,7 +78,10 @@ func (s *DeckService) GetByID(ctx context.Context, deckID int64) (domain.Deck, e
 func (s *DeckService) GetList(ctx context.Context) ([]domain.Deck, error) {
 	decks, err := s.decks.GetDeckList(ctx)
 	if err != nil {
-		return []domain.Deck{}, err
+		return nil, err
+	}
+	if decks == nil {
+		decks = []domain.Deck{}
 	}
 	return decks, nil
 }

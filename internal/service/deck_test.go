@@ -16,6 +16,7 @@ type fakeDeckRepository struct {
 	gotInput domain.DeckCreate
 	calls    int
 	deck     domain.Deck
+	deckList []domain.Deck
 	err      error
 }
 
@@ -29,11 +30,19 @@ func (f *fakeDeckRepository) CreateDeck(_ context.Context, in domain.DeckCreate)
 }
 
 func (f *fakeDeckRepository) GetDeckByID(_ context.Context, _ int64) (domain.Deck, error) {
-	return domain.Deck{}, nil
+	f.calls++
+	if f.err != nil {
+		return domain.Deck{}, f.err
+	}
+	return f.deck, nil
 }
 
 func (f *fakeDeckRepository) GetDeckList(_ context.Context) ([]domain.Deck, error) {
-	return nil, nil
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.deckList, nil
 }
 
 func TestDeckServiceCreateValidation(t *testing.T) {
@@ -159,5 +168,88 @@ func TestDeckServiceCreateRepositoryError(t *testing.T) {
 	})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Create() error = %v, want errors.Is %v", err, wantErr)
+	}
+}
+
+func TestDeckServiceGetByIDSuccess(t *testing.T) {
+	want := domain.Deck{ID: 7, Name: "Spanish", Language: domain.LanguageES}
+	repo := &fakeDeckRepository{deck: want}
+	svc := NewDeckService(repo)
+
+	got, err := svc.GetByID(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("GetByID() unexpected error = %v", err)
+	}
+	if repo.calls != 1 {
+		t.Fatalf("repository called %d times, want 1", repo.calls)
+	}
+	if got != want {
+		t.Errorf("GetByID() = %+v, want %+v", got, want)
+	}
+}
+
+func TestDeckServiceGetByIDNotFound(t *testing.T) {
+	repo := &fakeDeckRepository{err: domain.ErrNotFound}
+	svc := NewDeckService(repo)
+
+	_, err := svc.GetByID(context.Background(), 404)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("GetByID() error = %v, want errors.Is %v", err, domain.ErrNotFound)
+	}
+}
+
+func TestDeckServiceGetList(t *testing.T) {
+	tests := []struct {
+		name     string
+		repoList []domain.Deck
+		wantLen  int
+	}{
+		{
+			name: "passes decks through",
+			repoList: []domain.Deck{
+				{ID: 1, Name: "Spanish", Language: domain.LanguageES},
+				{ID: 2, Name: "English", Language: domain.LanguageEN},
+			},
+			wantLen: 2,
+		},
+		{
+			name:     "empty slice stays empty",
+			repoList: []domain.Deck{},
+			wantLen:  0,
+		},
+		{
+			name:     "nil from repository becomes non-nil empty slice",
+			repoList: nil,
+			wantLen:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeDeckRepository{deckList: tt.repoList}
+			svc := NewDeckService(repo)
+
+			got, err := svc.GetList(context.Background())
+			if err != nil {
+				t.Fatalf("GetList() unexpected error = %v", err)
+			}
+			if got == nil {
+				t.Fatalf("GetList() returned nil slice, want non-nil for [] contract")
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("GetList() len = %d, want %d", len(got), tt.wantLen)
+			}
+		})
+	}
+}
+
+func TestDeckServiceGetListRepositoryError(t *testing.T) {
+	wantErr := errors.New("select failed")
+	repo := &fakeDeckRepository{err: wantErr}
+	svc := NewDeckService(repo)
+
+	_, err := svc.GetList(context.Background())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("GetList() error = %v, want errors.Is %v", err, wantErr)
 	}
 }
