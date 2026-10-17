@@ -22,8 +22,6 @@ security:
 tags:
   - name: auth
     description: Регистрация, вход и токены
-  - name: users
-    description: Пользователь
   - name: decks
     description: Колоды
   - name: cards
@@ -640,6 +638,8 @@ components:
         password:
           type: string
           format: password
+          minLength: 8
+          maxLength: 72
           description: Пароль пользователя
           example: correct horse battery
     RefreshRequest:
