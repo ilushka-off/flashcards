@@ -16,9 +16,12 @@ info:
 servers:
   - url: http://localhost:8080/api/v1
     description: Локальный запуск
-# В v1 авторизации нет: один пользователь
-security: []
+# По умолчанию все методы требуют access-токен; у auth-методов и healthz своё security: []
+security:
+  - bearerAuth: []
 tags:
+  - name: auth
+    description: Регистрация, вход и токены
   - name: decks
     description: Колоды
   - name: cards
@@ -30,7 +33,132 @@ tags:
   - name: system
     description: Служебные методы
 
+
 paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Регистрация
+      description: Создаёт пользователя по email и паролю. Пароль хранится как bcrypt-хэш, длина 8–72 байта. Метод доступен без токена.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Вход
+      description: Проверяет email и пароль и выдаёт пару токенов. Неверный email и неверный пароль дают одинаковый ответ 401. Метод доступен без токена.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Пара токенов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: Обновить токены
+      description: Принимает refresh-токен, отзывает его и выдаёт новую пару токенов (ротация). Повторное использование отозванного токена отзывает все токены пользователя. Метод доступен без токена.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Новая пара токенов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Выход
+      description: Отзывает переданный refresh-токен. Идемпотентен — повторный вызов тоже возвращает 204. Метод доступен без токена.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: Токен отозван
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: Текущий пользователь
+      description: Возвращает профиль пользователя, которому принадлежит access-токен.
+      responses:
+        '200':
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /decks:
     get:
       tags: [decks]
@@ -44,6 +172,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeckList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
@@ -66,6 +196,8 @@ paths:
                 $ref: '#/components/schemas/Deck'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -86,6 +218,8 @@ paths:
                 $ref: '#/components/schemas/Deck'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -110,6 +244,8 @@ paths:
                 $ref: '#/components/schemas/Deck'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -124,6 +260,8 @@ paths:
           description: Колода удалена
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -150,6 +288,8 @@ paths:
                 $ref: '#/components/schemas/CardPage'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -174,6 +314,8 @@ paths:
                 $ref: '#/components/schemas/Card'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -202,6 +344,8 @@ paths:
                 $ref: '#/components/schemas/Card'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -216,6 +360,8 @@ paths:
           description: Карточка удалена
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -240,6 +386,8 @@ paths:
                 $ref: '#/components/schemas/ReviewQueue'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -268,6 +416,8 @@ paths:
                 $ref: '#/components/schemas/Card'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -290,6 +440,8 @@ paths:
                 $ref: '#/components/schemas/DeckStats'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -303,6 +455,7 @@ paths:
       tags: [system]
       operationId: health
       summary: Проверка живости
+      security: []
       description: Проверяет, что сервис запущен и база данных отвечает. Используется в healthcheck контейнера.
       responses:
         '200':
@@ -323,6 +476,14 @@ paths:
                 status: unavailable
 
 components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Access-токен JWT в заголовке: Authorization: Bearer <access_token>'
+
   parameters:
     DeckId:
       name: id
@@ -386,8 +547,18 @@ components:
             error:
               code: validation_error
               message: 'name: обязательное поле'
+    Unauthorized:
+      description: Требуется авторизация или неверные учётные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: unauthorized
+              message: требуется авторизация
     NotFound:
-      description: Сущность не найдена
+      description: Сущность не найдена или принадлежит другому пользователю
       content:
         application/json:
           schema:
@@ -396,6 +567,33 @@ components:
             error:
               code: not_found
               message: колода не найдена
+    Conflict:
+      description: Email уже зарегистрирован
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: conflict
+              message: 'email: уже зарегистрирован'
+    TooManyRequests:
+      description: Превышен лимит попыток на /auth
+      headers:
+        Retry-After:
+          description: Через сколько секунд можно повторить попытку
+          schema:
+            type: integer
+            minimum: 0
+          example: 30
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: too_many_requests
+              message: слишком много попыток, попробуйте позже
     InternalError:
       description: Внутренняя ошибка сервера
       content:
@@ -408,6 +606,93 @@ components:
               message: внутренняя ошибка
 
   schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Email пользователя
+          example: ilya@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          description: Пароль, 8–72 байта. bcrypt молча обрезает всё длиннее 72 байт
+          example: correct horse battery
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Email пользователя
+          example: ilya@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          description: Пароль пользователя
+          example: correct horse battery
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh-токен, выданный при входе или предыдущем обновлении
+          example: q3V0bXBsZXJlZnJlc2h0b2tlbnZhbHVlZXhhbXBsZQ
+    TokenResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          description: JWT access-токен (HS256)
+          example: eyJhbGciOiJIUzI1NiIs...
+        refresh_token:
+          type: string
+          description: Новый refresh-токен. Прежний отзывается
+          example: q3V0bXBsZXJlZnJlc2h0b2tlbnZhbHVlZXhhbXBsZQ
+        token_type:
+          type: string
+          enum: [Bearer]
+          description: Тип токена
+          example: Bearer
+        expires_in:
+          type: integer
+          minimum: 0
+          description: Срок жизни access-токена в секундах
+          example: 900
+    User:
+      type: object
+      required: [id, email, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Идентификатор пользователя
+          example: 1
+        email:
+          type: string
+          format: email
+          description: Email пользователя
+          example: ilya@example.com
+        created_at:
+          type: string
+          format: date-time
+          description: Когда пользователь зарегистрирован
+          example: '2026-10-03T07:30:00Z'
+
     Language:
       type: string
       enum: [en, es]
@@ -693,7 +978,7 @@ components:
           properties:
             code:
               type: string
-              enum: [validation_error, not_found, internal]
+              enum: [validation_error, unauthorized, not_found, conflict, too_many_requests, internal]
               description: Машиночитаемый код ошибки
               example: validation_error
             message:
