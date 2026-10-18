@@ -6,12 +6,18 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/ilushka-off/flashcards/internal/auth"
 	"github.com/ilushka-off/flashcards/internal/config"
 	"github.com/ilushka-off/flashcards/internal/handler"
 	"github.com/ilushka-off/flashcards/internal/middleware"
 	"github.com/ilushka-off/flashcards/internal/repository/postgres"
 	"github.com/ilushka-off/flashcards/internal/service"
+)
+
+const (
+	tokenTTL = 15 * time.Minute
 )
 
 func main() {
@@ -44,11 +50,17 @@ func run() error {
 
 	healthHandler := handler.NewHealthHandler(pool, logger)
 
+	tokenManager := auth.NewTokenManager([]byte(cfg.JWTSecret), tokenTTL)
+
 	deckRepository := postgres.NewDeckRepository(pool)
 	deckService := service.NewDeckService(deckRepository)
 	deckHandler := handler.NewDeckHandler(deckService, logger)
 
-	router := handler.NewRouter(deckHandler, healthHandler, logger)
+	userRepository := postgres.NewUserRepository(pool)
+	userService := service.NewUserService(userRepository, tokenManager)
+	userHandler := handler.NewUserHandler(userService, tokenTTL, cfg.CookieSecure, logger)
+
+	router := handler.NewRouter(deckHandler, healthHandler, userHandler, logger)
 
 	logger.Info("server started", "port", cfg.HTTPPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.HTTPPort), router); err != nil {

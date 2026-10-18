@@ -16,19 +16,25 @@ const (
 
 // Config — параметры запуска сервиса.
 type Config struct {
-	HTTPPort    int
-	DatabaseURI string
-	LogLevel    slog.Level
-	LogFormat   string
+	HTTPPort     int
+	DatabaseURI  string
+	LogLevel     slog.Level
+	LogFormat    string
+	JWTSecret    string
+	CookieSecure bool
 }
 
-// ErrDatabaseURINotFound Ошибка конфигурации, при которых сервис не может быть запущен.
+// Ошибки конфигурации, при которых сервис не может быть запущен.
 var (
 	ErrDatabaseURINotFound = errors.New("database uri not found")
+	ErrJWTSecretNotFound   = errors.New("jwt secret not found")
 )
 
+const minJWTSecretLength = 32
+
 // Load собирает конфигурацию из переменных окружения
-// HTTP_PORT, DATABASE_URI, LOG_LEVEL, LOG_FORMAT.
+// HTTP_PORT, DATABASE_URI, LOG_LEVEL, LOG_FORMAT, JWT_SECRET, COOKIE_SECURE.
+// DATABASE_URI и JWT_SECRET обязательны: без них Load возвращает ошибку.
 func Load() (Config, error) {
 	httpPort := 8080
 	if v, ok := os.LookupEnv("HTTP_PORT"); ok {
@@ -66,10 +72,32 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("LOG_FORMAT: must be %s or %s, got %q", LogFormatJSON, LogFormatText, logFormat)
 	}
 
+	var jwtSecret string
+	if v, ok := os.LookupEnv("JWT_SECRET"); ok {
+		jwtSecret = v
+	}
+	if jwtSecret == "" {
+		return Config{}, ErrJWTSecretNotFound
+	}
+	if len(jwtSecret) < minJWTSecretLength {
+		return Config{}, fmt.Errorf("JWT_SECRET: must be at least %d bytes", minJWTSecretLength)
+	}
+
+	var cookieSecure bool
+	if v, ok := os.LookupEnv("COOKIE_SECURE"); ok {
+		var err error
+		cookieSecure, err = strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("COOKIE_SECURE: %w", err)
+		}
+	}
+
 	return Config{
-		HTTPPort:    httpPort,
-		DatabaseURI: databaseURI,
-		LogLevel:    logLevel,
-		LogFormat:   logFormat,
+		HTTPPort:     httpPort,
+		DatabaseURI:  databaseURI,
+		LogLevel:     logLevel,
+		LogFormat:    logFormat,
+		JWTSecret:    jwtSecret,
+		CookieSecure: cookieSecure,
 	}, nil
 }
