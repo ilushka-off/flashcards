@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,6 +22,7 @@ type Config struct {
 	DatabaseURI string
 	LogLevel    slog.Level
 	LogFormat   string
+	JWTSecret   string
 }
 
 // ErrDatabaseURINotFound Ошибка конфигурации, при которых сервис не может быть запущен.
@@ -66,10 +69,23 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("LOG_FORMAT: must be %s or %s, got %q", LogFormatJSON, LogFormatText, logFormat)
 	}
 
+	var jwtSecret string
+	if v, ok := os.LookupEnv("JWT_SECRET"); ok {
+		jwtSecret = v
+	}
+
+	if jwtSecret == "" {
+		jwtSecret := make([]byte, 32)
+		rand.Read(jwtSecret)
+		jwtSecret = []byte(hex.EncodeToString(jwtSecret))
+
+	}
+
 	return Config{
 		HTTPPort:    httpPort,
 		DatabaseURI: databaseURI,
 		LogLevel:    logLevel,
 		LogFormat:   logFormat,
+		JWTSecret:   jwtSecret,
 	}, nil
 }

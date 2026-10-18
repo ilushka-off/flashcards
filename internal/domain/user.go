@@ -1,6 +1,13 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	ErrEmailExists = errors.New("email already exists")
+)
 
 // UserCreate — данные для создания пользователя.
 type UserCreate struct {
