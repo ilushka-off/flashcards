@@ -58,7 +58,7 @@ func run() error {
 
 	userRepository := postgres.NewUserRepository(pool)
 	userService := service.NewUserService(userRepository, tokenManager)
-	userHandler := handler.NewUserHandler(userService, logger)
+	userHandler := handler.NewUserHandler(userService, tokenTTL, cfg.CookieSecure, logger)
 
 	router := handler.NewRouter(deckHandler, healthHandler, userHandler, logger)
 

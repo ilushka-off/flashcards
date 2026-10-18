@@ -10,6 +10,7 @@ import (
 
 func TestLoad(t *testing.T) {
 	const validDB = "postgres://user:pass@localhost:5432/flashcards"
+	const validSecret = "test-secret-at-least-32-bytes-long"
 
 	tests := []struct {
 		name         string
@@ -23,15 +24,15 @@ func TestLoad(t *testing.T) {
 		wantLogFormat string
 	}{
 		{
-			name:         "defaults when only database uri is set",
-			env:          map[string]string{"DATABASE_URI": validDB},
+			name:         "defaults when only database uri and secret are set",
+			env:          map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": validSecret},
 			wantPort:     8080,
 			wantDB:       validDB,
 			wantLogLevel: slog.LevelInfo,
 		},
 		{
 			name:          "log format text from environment",
-			env:           map[string]string{"DATABASE_URI": validDB, "LOG_FORMAT": "text"},
+			env:           map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": validSecret, "LOG_FORMAT": "text"},
 			wantPort:      8080,
 			wantDB:        validDB,
 			wantLogLevel:  slog.LevelInfo,
@@ -47,6 +48,7 @@ func TestLoad(t *testing.T) {
 			env: map[string]string{
 				"HTTP_PORT":    "9090",
 				"DATABASE_URI": validDB,
+				"JWT_SECRET":   validSecret,
 				"LOG_LEVEL":    "debug",
 			},
 			wantPort:     9090,
@@ -55,21 +57,21 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:         "log level is case insensitive",
-			env:          map[string]string{"DATABASE_URI": validDB, "LOG_LEVEL": "WARN"},
+			env:          map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": validSecret, "LOG_LEVEL": "WARN"},
 			wantPort:     8080,
 			wantDB:       validDB,
 			wantLogLevel: slog.LevelWarn,
 		},
 		{
 			name:         "lowest valid port",
-			env:          map[string]string{"DATABASE_URI": validDB, "HTTP_PORT": "1"},
+			env:          map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": validSecret, "HTTP_PORT": "1"},
 			wantPort:     1,
 			wantDB:       validDB,
 			wantLogLevel: slog.LevelInfo,
 		},
 		{
 			name:         "highest valid port",
-			env:          map[string]string{"DATABASE_URI": validDB, "HTTP_PORT": "65535"},
+			env:          map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": validSecret, "HTTP_PORT": "65535"},
 			wantPort:     65535,
 			wantDB:       validDB,
 			wantLogLevel: slog.LevelInfo,
@@ -113,6 +115,16 @@ func TestLoad(t *testing.T) {
 			name:    "empty database uri",
 			env:     map[string]string{"DATABASE_URI": ""},
 			wantErr: ErrDatabaseURINotFound,
+		},
+		{
+			name:    "missing jwt secret",
+			env:     map[string]string{"DATABASE_URI": validDB},
+			wantErr: ErrJWTSecretNotFound,
+		},
+		{
+			name:    "empty jwt secret",
+			env:     map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": ""},
+			wantErr: ErrJWTSecretNotFound,
 		},
 	}
 
@@ -166,7 +178,7 @@ func TestLoad(t *testing.T) {
 // starts from a clean slate. t.Setenv registers restoration after the test.
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
-	for _, name := range []string{"HTTP_PORT", "DATABASE_URI", "LOG_LEVEL", "LOG_FORMAT"} {
+	for _, name := range []string{"HTTP_PORT", "DATABASE_URI", "LOG_LEVEL", "LOG_FORMAT", "JWT_SECRET", "COOKIE_SECURE"} {
 		t.Setenv(name, "")
 		if err := os.Unsetenv(name); err != nil {
 			t.Fatalf("unset %s: %v", name, err)

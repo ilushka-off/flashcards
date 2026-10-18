@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
 	"unicode/utf8"
 
 	"github.com/ilushka-off/flashcards/internal/auth"
@@ -17,9 +18,11 @@ var (
 	ErrInvalidCredentials = errors.New("invalid user credentials")
 )
 
+// Границы из схем RegisterRequest в api/openapi.yaml.
 const (
-	minEmailLength = 8
-	maxEmailLength = 254
+	maxEmailLength    = 255
+	minPasswordLength = 8
+	maxPasswordLength = 72
 )
 
 // UserRepository - то, что сервису нужно от пользователя.
@@ -39,11 +42,19 @@ func NewUserService(users UserRepository, tokens *auth.TokenManager) *UserServic
 	}
 }
 
+// validEmail проверяет, что строка — это голый email-адрес.
+// ParseAddress принимает и формы вида "Name <a@b.co>", поэтому
+// дополнительно требуем, чтобы распознанный адрес совпадал с вводом.
+func validEmail(email string) bool {
+	addr, err := mail.ParseAddress(email)
+	return err == nil && addr.Address == email
+}
+
 func (s *UserService) Register(ctx context.Context, in domain.UserCreate) (domain.User, string, error) {
-	if in.Email == "" || in.Password == "" {
+	if utf8.RuneCountInString(in.Email) > maxEmailLength || !validEmail(in.Email) {
 		return domain.User{}, "", ErrInvalidInput
 	}
-	if utf8.RuneCountInString(in.Email) > maxEmailLength || utf8.RuneCountInString(in.Email) < minEmailLength {
+	if len(in.Password) < minPasswordLength || len(in.Password) > maxPasswordLength {
 		return domain.User{}, "", ErrInvalidInput
 	}
 

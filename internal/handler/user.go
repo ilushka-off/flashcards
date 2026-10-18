@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/ilushka-off/flashcards/internal/auth"
 	"github.com/ilushka-off/flashcards/internal/domain"
@@ -13,28 +14,33 @@ import (
 
 // UserHandler обслуживает регистрацию и аутентификацию пользователей.
 type UserHandler struct {
-	userService *service.UserService
-	logger      *slog.Logger
+	userService  *service.UserService
+	tokenTTL     time.Duration
+	cookieSecure bool
+	logger       *slog.Logger
 }
 
-// NewUserHandler создаёт UserHandler поверх UserService.
-func NewUserHandler(userService *service.UserService, logger *slog.Logger) *UserHandler {
+// NewUserHandler создаёт UserHandler поверх UserService. tokenTTL должен совпадать
+// со сроком жизни токена у TokenManager, чтобы кука и токен истекали одновременно.
+func NewUserHandler(userService *service.UserService, tokenTTL time.Duration, cookieSecure bool, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
-		userService: userService,
-		logger:      logger,
+		userService:  userService,
+		tokenTTL:     tokenTTL,
+		cookieSecure: cookieSecure,
+		logger:       logger,
 	}
 }
 
-func setAuthToken(w http.ResponseWriter, token string) {
+func (h *UserHandler) setAuthToken(w http.ResponseWriter, token string) {
 	w.Header().Add("Authorization", "Bearer "+token)
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.CookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   1200,
+		MaxAge:   int(h.tokenTTL.Seconds()),
 	})
 }
 
@@ -58,6 +64,6 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusInternalServerError, CodeInternal, msgInternal)
 		return
 	}
-	setAuthToken(w, token)
+	h.setAuthToken(w, token)
 	WriteJSON(w, http.StatusCreated, user)
 }
