@@ -13,12 +13,18 @@ func TestUserRepositoryCreateUser(t *testing.T) {
 	ctx := context.Background()
 	repository := NewUserRepository(testPool(t))
 
-	userID, err := repository.CreateUser(ctx, domain.UserCreate{Email: "test@mail.ru", Password: "test"})
+	user, err := repository.CreateUser(ctx, domain.UserCreate{Email: "test@mail.ru", Password: "test"})
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	if userID == 0 {
+	if user.ID == 0 {
 		t.Fatalf("returned user id is zero")
+	}
+	if user.Email != "test@mail.ru" {
+		t.Fatalf("email = %q, want %q", user.Email, "test@mail.ru")
+	}
+	if user.CreatedAt.IsZero() {
+		t.Fatalf("created_at is zero")
 	}
 
 	t.Run("duplicate email", func(t *testing.T) {

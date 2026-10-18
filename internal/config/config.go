@@ -1,8 +1,6 @@
 package config
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -72,13 +70,6 @@ func Load() (Config, error) {
 	var jwtSecret string
 	if v, ok := os.LookupEnv("JWT_SECRET"); ok {
 		jwtSecret = v
-	}
-
-	if jwtSecret == "" {
-		jwtSecret := make([]byte, 32)
-		rand.Read(jwtSecret)
-		jwtSecret = []byte(hex.EncodeToString(jwtSecret))
-
 	}
 
 	return Config{

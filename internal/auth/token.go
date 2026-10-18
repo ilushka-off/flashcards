@@ -20,21 +20,21 @@ const CookieName = "token"
 // Claims — полезная нагрузка токена: стандартные поля JWT и идентификатор пользователя.
 type Claims struct {
 	jwt.RegisteredClaims
-	userID int64
+	UserID int64
 }
 
 // TokenManager выпускает и проверяет JWT-токены, подписанные HS256.
 type TokenManager struct {
-	secret []byte
-	ttl    time.Duration
+	secret         []byte
+	accessTokenTTL time.Duration
 }
 
 // NewTokenManager создаёт TokenManager, подписывающий токены ключом secret
 // и выпускающий их со сроком жизни ttl.
-func NewTokenManager(secret []byte, ttl time.Duration) *TokenManager {
+func NewTokenManager(secret []byte, accessTokenTTL time.Duration) *TokenManager {
 	return &TokenManager{
-		secret: secret,
-		ttl:    ttl,
+		secret:         secret,
+		accessTokenTTL: accessTokenTTL,
 	}
 }
 
@@ -42,10 +42,11 @@ func NewTokenManager(secret []byte, ttl time.Duration) *TokenManager {
 func (m *TokenManager) Issue(userID int64) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   fmt.Sprintf("%d", userID),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.ttl)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.accessTokenTTL)),
 		},
-		userID: userID,
+		UserID: userID,
 	})
 	tokenString, err := token.SignedString(m.secret)
 	if err != nil {
@@ -66,8 +67,8 @@ func (m *TokenManager) Verify(tokenString string) (int64, error) {
 		jwt.WithExpirationRequired(),
 	)
 	if err != nil {
-		return 0, fmt.Errorf("verify token: %w", err)
+		return 0, fmt.Errorf("verify token: %w: %w", ErrInvalidToken, err)
 	}
 
-	return claims.userID, nil
+	return claims.UserID, nil
 }

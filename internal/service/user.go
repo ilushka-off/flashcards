@@ -17,11 +17,14 @@ var (
 	ErrInvalidCredentials = errors.New("invalid user credentials")
 )
 
-const maxEmailLength = 255
+const (
+	minEmailLength = 8
+	maxEmailLength = 254
+)
 
 // UserRepository - то, что сервису нужно от пользователя.
 type UserRepository interface {
-	CreateUser(ctx context.Context, in domain.UserCreate) (int64, error)
+	CreateUser(ctx context.Context, in domain.UserCreate) (domain.User, error)
 }
 
 type UserService struct {
@@ -36,36 +39,36 @@ func NewUserService(users UserRepository, tokens *auth.TokenManager) *UserServic
 	}
 }
 
-func (s *UserService) Register(ctx context.Context, in domain.UserCreate) (string, error) {
+func (s *UserService) Register(ctx context.Context, in domain.UserCreate) (domain.User, string, error) {
 	if in.Email == "" || in.Password == "" {
-		return "", ErrInvalidInput
+		return domain.User{}, "", ErrInvalidInput
 	}
-	if utf8.RuneCountInString(in.Password) > maxEmailLength {
-		return "", ErrInvalidInput
+	if utf8.RuneCountInString(in.Email) > maxEmailLength || utf8.RuneCountInString(in.Email) < minEmailLength {
+		return domain.User{}, "", ErrInvalidInput
 	}
 
 	passwordHash, err := auth.HashPassword(in.Password)
 	if errors.Is(err, auth.ErrPasswordTooLong) {
-		return "", ErrInvalidInput
+		return domain.User{}, "", ErrInvalidInput
 	}
 	if err != nil {
-		return "", fmt.Errorf("hash password: %w", err)
+		return domain.User{}, "", fmt.Errorf("hash password: %w", err)
 	}
 
-	userID, err := s.users.CreateUser(ctx, domain.UserCreate{
+	user, err := s.users.CreateUser(ctx, domain.UserCreate{
 		Email:    in.Email,
 		Password: passwordHash,
 	})
 	if errors.Is(err, domain.ErrEmailExists) {
-		return "", ErrEmailTaken
+		return domain.User{}, "", ErrEmailTaken
 	}
 	if err != nil {
-		return "", fmt.Errorf("create user: %w", err)
+		return domain.User{}, "", fmt.Errorf("create user: %w", err)
 	}
 
-	token, err := s.tokens.Issue(userID)
+	token, err := s.tokens.Issue(user.ID)
 	if err != nil {
-		return "", fmt.Errorf("issue token: %w", err)
+		return domain.User{}, "", fmt.Errorf("issue token: %w", err)
 	}
-	return token, nil
+	return user, token, nil
 }

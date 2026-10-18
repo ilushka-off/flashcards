@@ -32,6 +32,9 @@ func setAuthToken(w http.ResponseWriter, token string) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   1200,
 	})
 }
 
@@ -43,19 +46,18 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректное тело запроса")
 		return
 	}
-	token, err := h.userService.Register(r.Context(), req)
+	user, token, err := h.userService.Register(r.Context(), req)
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
 		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректный email или пароль")
 		return
 	case errors.Is(err, service.ErrEmailTaken):
-		WriteError(w, http.StatusConflict, CodeValidation, "email: уже зарегистрирован")
+		WriteError(w, http.StatusConflict, CodeConflict, "email: уже зарегистрирован")
 		return
 	case err != nil:
 		WriteError(w, http.StatusInternalServerError, CodeInternal, msgInternal)
 		return
 	}
 	setAuthToken(w, token)
-	WriteJSON(w, http.StatusCreated, domain.User{})
-
+	WriteJSON(w, http.StatusCreated, user)
 }
