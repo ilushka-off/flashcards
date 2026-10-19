@@ -100,10 +100,20 @@ func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64, userID i
 
 func (r *DeckRepository) UpdateDeckByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error) {
 	var deck domain.Deck
-	query := `UPDATE decks SET name = COALESCE($1, name), description = COALESCE($2, description)
-				WHERE id = $3 AND user_id = $4 RETURNING name, description`
 
-	err := r.pool.QueryRow(ctx, query, in.Name, in.Description, deckID, userID).Scan(&deck.Name, &deck.Description)
+	// UPDATE и подсчёт карточек одним запросом: ответ PATCH — полная колода.
+	// Если колоды нет или она чужая, CTE пуст и запрос не вернёт строк.
+	query := `WITH d AS (
+					UPDATE decks SET name = COALESCE($1, name), description = COALESCE($2, description)
+					WHERE id = $3 AND user_id = $4
+					RETURNING id, "name", "language", description, created_at
+				)
+				SELECT d.id, d."name", d."language", d.description, COUNT(c.id) AS total_cards, COUNT(c.id) FILTER(WHERE c.due_at <= now()) AS due_cards, d.created_at
+				FROM d
+				LEFT JOIN cards c ON d.id = c.deck_id
+				GROUP BY d.id, d."name", d."language", d.description, d.created_at`
+
+	err := r.pool.QueryRow(ctx, query, in.Name, in.Description, deckID, userID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.TotalCards, &deck.DueCards, &deck.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Deck{}, domain.ErrNotFound
 	}
@@ -111,5 +121,6 @@ func (r *DeckRepository) UpdateDeckByID(ctx context.Context, deckID, userID int6
 		return domain.Deck{}, fmt.Errorf("update deck: %w", err)
 	}
 
+	deck.CreatedAt = deck.CreatedAt.UTC()
 	return deck, nil
 }
