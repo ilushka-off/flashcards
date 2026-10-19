@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,5 +197,159 @@ func TestDeckRepositoryGetDeckListOwnership(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
+func TestDeckRepositoryUpdateDeckByID(t *testing.T) {
+	pool := newTestPool(t)
+	repo := NewDeckRepository(pool)
+	ctx := context.Background()
+	ownerID := createTestUser(t, pool, "owner@mail.ru")
+
+	tests := []struct {
+		name            string
+		in              domain.DeckUpdate
+		wantName        string
+		wantDescription string
+	}{
+		{
+			name:            "only name keeps description",
+			in:              domain.DeckUpdate{Name: strPtr("Renamed")},
+			wantName:        "Renamed",
+			wantDescription: "colours and numbers",
+		},
+		{
+			name:            "only description keeps name",
+			in:              domain.DeckUpdate{Description: strPtr("new description")},
+			wantName:        "Spanish basics",
+			wantDescription: "new description",
+		},
+		{
+			name:            "empty description clears it",
+			in:              domain.DeckUpdate{Description: strPtr("")},
+			wantName:        "Spanish basics",
+			wantDescription: "",
+		},
+		{
+			name:            "both fields",
+			in:              domain.DeckUpdate{Name: strPtr("Renamed"), Description: strPtr("new description")},
+			wantName:        "Renamed",
+			wantDescription: "new description",
+		},
+		{
+			// VARCHAR(100) counts characters, not bytes: 100 cyrillic runes are 200 bytes.
+			name:            "name of exactly 100 cyrillic runes fits the column",
+			in:              domain.DeckUpdate{Name: strPtr(strings.Repeat("я", 100))},
+			wantName:        strings.Repeat("я", 100),
+			wantDescription: "colours and numbers",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			created, err := repo.CreateDeck(ctx, domain.DeckCreate{
+				Name:        "Spanish basics",
+				Language:    domain.LanguageES,
+				Description: "colours and numbers",
+			}, ownerID)
+			if err != nil {
+				t.Fatalf("CreateDeck() error = %v", err)
+			}
+
+			got, err := repo.UpdateDeckByID(ctx, created.ID, ownerID, tt.in)
+			if err != nil {
+				t.Fatalf("UpdateDeckByID() error = %v", err)
+			}
+			if got.Name != tt.wantName || got.Description != tt.wantDescription {
+				t.Errorf("returned (%q, %q), want (%q, %q)", got.Name, got.Description, tt.wantName, tt.wantDescription)
+			}
+			// Fields that PATCH can't touch come back as they were.
+			if got.ID != created.ID || got.Language != created.Language || !got.CreatedAt.Equal(created.CreatedAt) {
+				t.Errorf("returned %+v, want id/language/created_at from %+v", got, created)
+			}
+
+			stored, err := repo.GetDeckByID(ctx, created.ID, ownerID)
+			if err != nil {
+				t.Fatalf("GetDeckByID() error = %v", err)
+			}
+			if stored.Name != tt.wantName || stored.Description != tt.wantDescription {
+				t.Errorf("stored (%q, %q), want (%q, %q)", stored.Name, stored.Description, tt.wantName, tt.wantDescription)
+			}
+		})
+	}
+}
+
+func TestDeckRepositoryUpdateDeckByIDKeepsCardCounters(t *testing.T) {
+	pool := newTestPool(t)
+	repo := NewDeckRepository(pool)
+	ctx := context.Background()
+	ownerID := createTestUser(t, pool, "owner@mail.ru")
+
+	created, err := repo.CreateDeck(ctx, domain.DeckCreate{Name: "Spanish", Language: domain.LanguageES}, ownerID)
+	if err != nil {
+		t.Fatalf("CreateDeck() error = %v", err)
+	}
+	// One card is due, one is scheduled for tomorrow.
+	_, err = pool.Exec(ctx, `INSERT INTO cards (deck_id, front, back, due_at)
+		VALUES ($1, 'uno', 'one', now() - interval '1 hour'), ($1, 'dos', 'two', now() + interval '1 day')`, created.ID)
+	if err != nil {
+		t.Fatalf("insert cards: %v", err)
+	}
+
+	got, err := repo.UpdateDeckByID(ctx, created.ID, ownerID, domain.DeckUpdate{Name: strPtr("Renamed")})
+	if err != nil {
+		t.Fatalf("UpdateDeckByID() error = %v", err)
+	}
+	if got.TotalCards != 2 || got.DueCards != 1 {
+		t.Errorf("counters = (total %d, due %d), want (2, 1)", got.TotalCards, got.DueCards)
+	}
+}
+
+func TestDeckRepositoryUpdateDeckByIDOwnership(t *testing.T) {
+	pool := newTestPool(t)
+	repo := NewDeckRepository(pool)
+	ctx := context.Background()
+	ownerID := createTestUser(t, pool, "owner@mail.ru")
+	strangerID := createTestUser(t, pool, "stranger@mail.ru")
+
+	created, err := repo.CreateDeck(ctx, domain.DeckCreate{
+		Name:        "Spanish",
+		Language:    domain.LanguageES,
+		Description: "mine",
+	}, ownerID)
+	if err != nil {
+		t.Fatalf("CreateDeck() error = %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		deckID int64
+		userID int64
+	}{
+		{"someone else's deck", created.ID, strangerID},
+		{"missing deck", created.ID + 1000, ownerID},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := repo.UpdateDeckByID(ctx, tt.deckID, tt.userID, domain.DeckUpdate{
+				Name:        strPtr("Hijacked"),
+				Description: strPtr(""),
+			})
+			if !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("UpdateDeckByID() error = %v, want %v", err, domain.ErrNotFound)
+			}
+		})
+	}
+
+	// The owner's deck must be untouched after the failed attempts.
+	stored, err := repo.GetDeckByID(ctx, created.ID, ownerID)
+	if err != nil {
+		t.Fatalf("GetDeckByID() error = %v", err)
+	}
+	if stored.Name != "Spanish" || stored.Description != "mine" {
+		t.Errorf("stored (%q, %q), want (%q, %q)", stored.Name, stored.Description, "Spanish", "mine")
 	}
 }

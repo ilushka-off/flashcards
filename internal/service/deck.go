@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -42,7 +43,7 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate, userID i
 	if utf8.RuneCountInString(in.Name) > maxDeckNameLen {
 		return domain.Deck{}, &domain.ValidationError{
 			Field:   "name",
-			Message: "не длиннее 100 символов",
+			Message: fmt.Sprintf("не длиннее %d символов", maxDeckNameLen),
 		}
 	}
 
@@ -57,7 +58,7 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate, userID i
 	if utf8.RuneCountInString(in.Description) > maxDeckDescriptionLen {
 		return domain.Deck{}, &domain.ValidationError{
 			Field:   "description",
-			Message: "не длиннее 500 символов",
+			Message: fmt.Sprintf("не длиннее %d символов", maxDeckDescriptionLen),
 		}
 	}
 
@@ -106,7 +107,7 @@ func (s *DeckService) UpdateByID(ctx context.Context, deckID, userID int64, in d
 		if utf8.RuneCountInString(name) > maxDeckNameLen {
 			return domain.Deck{}, &domain.ValidationError{
 				Field:   "name",
-				Message: "не длиннее 100 символов",
+				Message: fmt.Sprintf("не длиннее %d символов", maxDeckNameLen),
 			}
 		}
 		in.Name = &name
@@ -117,7 +118,7 @@ func (s *DeckService) UpdateByID(ctx context.Context, deckID, userID int64, in d
 		if utf8.RuneCountInString(description) > maxDeckDescriptionLen {
 			return domain.Deck{}, &domain.ValidationError{
 				Field:   "description",
-				Message: "не длиннее 500 символов",
+				Message: fmt.Sprintf("не длиннее %d символов", maxDeckDescriptionLen),
 			}
 		}
 		in.Description = &description

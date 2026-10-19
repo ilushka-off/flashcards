@@ -32,13 +32,13 @@ func NewDeckHandler(decks DeckService, logger *slog.Logger) *DeckHandler {
 func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var in domain.DeckCreate
 
-	if err := decodeJSON(w, r, &in); err != nil {
-		writeServiceError(w, r, h.logger, err, "")
+	userID, ok := getUserID(w, r)
+	if !ok {
 		return
 	}
 
-	userID, ok := getUserID(w, r)
-	if !ok {
+	if err := decodeJSON(w, r, &in); err != nil {
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 
@@ -87,6 +87,11 @@ func (h *DeckHandler) GetList(w http.ResponseWriter, r *http.Request) {
 func (h *DeckHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	var in domain.DeckUpdate
 
+	userID, ok := getUserID(w, r)
+	if !ok {
+		return
+	}
+
 	if err := decodeJSON(w, r, &in); err != nil {
 		writeServiceError(w, r, h.logger, err, "")
 		return
@@ -95,11 +100,6 @@ func (h *DeckHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 	deckID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || deckID < 1 {
 		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректный id в path запросе")
-		return
-	}
-
-	userID, ok := getUserID(w, r)
-	if !ok {
 		return
 	}
 
