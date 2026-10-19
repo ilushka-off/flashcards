@@ -353,3 +353,82 @@ func TestDeckRepositoryUpdateDeckByIDOwnership(t *testing.T) {
 		t.Errorf("stored (%q, %q), want (%q, %q)", stored.Name, stored.Description, "Spanish", "mine")
 	}
 }
+
+func TestDeckRepositoryDeleteDeckByID(t *testing.T) {
+	pool := newTestPool(t)
+	repo := NewDeckRepository(pool)
+	ctx := context.Background()
+	ownerID := createTestUser(t, pool, "owner@mail.ru")
+
+	deleted, err := repo.CreateDeck(ctx, domain.DeckCreate{Name: "Spanish", Language: domain.LanguageES}, ownerID)
+	if err != nil {
+		t.Fatalf("CreateDeck() error = %v", err)
+	}
+	kept, err := repo.CreateDeck(ctx, domain.DeckCreate{Name: "English", Language: domain.LanguageEN}, ownerID)
+	if err != nil {
+		t.Fatalf("CreateDeck() error = %v", err)
+	}
+	_, err = pool.Exec(ctx, `INSERT INTO cards (deck_id, front, back, due_at) VALUES ($1, 'uno', 'one', now())`, deleted.ID)
+	if err != nil {
+		t.Fatalf("insert card: %v", err)
+	}
+
+	if err := repo.DeleteDeckByID(ctx, deleted.ID, ownerID); err != nil {
+		t.Fatalf("DeleteDeckByID() error = %v", err)
+	}
+
+	if _, err := repo.GetDeckByID(ctx, deleted.ID, ownerID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("GetDeckByID() after delete error = %v, want %v", err, domain.ErrNotFound)
+	}
+	// The spec promises the deck's cards go with it (ON DELETE CASCADE).
+	var cards int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM cards WHERE deck_id = $1`, deleted.ID).Scan(&cards); err != nil {
+		t.Fatalf("count cards: %v", err)
+	}
+	if cards != 0 {
+		t.Errorf("cards left after delete = %d, want 0", cards)
+	}
+	if _, err := repo.GetDeckByID(ctx, kept.ID, ownerID); err != nil {
+		t.Errorf("GetDeckByID() for the other deck error = %v, want it kept", err)
+	}
+
+	// Deleting twice is a 404, not a silent success.
+	if err := repo.DeleteDeckByID(ctx, deleted.ID, ownerID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("second DeleteDeckByID() error = %v, want %v", err, domain.ErrNotFound)
+	}
+}
+
+func TestDeckRepositoryDeleteDeckByIDOwnership(t *testing.T) {
+	pool := newTestPool(t)
+	repo := NewDeckRepository(pool)
+	ctx := context.Background()
+	ownerID := createTestUser(t, pool, "owner@mail.ru")
+	strangerID := createTestUser(t, pool, "stranger@mail.ru")
+
+	created, err := repo.CreateDeck(ctx, domain.DeckCreate{Name: "Spanish", Language: domain.LanguageES}, ownerID)
+	if err != nil {
+		t.Fatalf("CreateDeck() error = %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		deckID int64
+		userID int64
+	}{
+		{"someone else's deck", created.ID, strangerID},
+		{"missing deck", created.ID + 1000, ownerID},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := repo.DeleteDeckByID(ctx, tt.deckID, tt.userID); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("DeleteDeckByID() error = %v, want %v", err, domain.ErrNotFound)
+			}
+		})
+	}
+
+	// The owner's deck survives the stranger's attempt.
+	if _, err := repo.GetDeckByID(ctx, created.ID, ownerID); err != nil {
+		t.Errorf("GetDeckByID() by owner error = %v, want the deck kept", err)
+	}
+}

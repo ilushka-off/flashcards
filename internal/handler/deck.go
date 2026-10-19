@@ -15,6 +15,7 @@ type DeckService interface {
 	GetByID(ctx context.Context, deckID, userID int64) (domain.Deck, error)
 	GetList(ctx context.Context, userID int64) ([]domain.Deck, error)
 	UpdateByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error)
+	DeleteByID(ctx context.Context, deckID, userID int64) error
 }
 
 type DeckHandler struct {
@@ -109,6 +110,25 @@ func (h *DeckHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	WriteJSON(w, http.StatusOK, deck)
+}
+
+func (h *DeckHandler) DeleteByID(w http.ResponseWriter, r *http.Request) {
+	deckID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || deckID < 1 {
+		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректный id в path запросе")
+		return
+	}
+
+	userID, ok := getUserID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := h.decks.DeleteByID(r.Context(), deckID, userID); err != nil {
+		writeServiceError(w, r, h.logger, err, "колода не найдена")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func getUserID(w http.ResponseWriter, r *http.Request) (int64, bool) {

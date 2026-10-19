@@ -15,6 +15,7 @@ type DeckRepository interface {
 	GetDeckByID(ctx context.Context, deckID, userID int64) (domain.Deck, error)
 	GetDeckList(ctx context.Context, userID int64) ([]domain.Deck, error)
 	UpdateDeckByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error)
+	DeleteDeckByID(ctx context.Context, deckID, userID int64) error
 }
 
 const (
@@ -129,4 +130,8 @@ func (s *DeckService) UpdateByID(ctx context.Context, deckID, userID int64, in d
 		return domain.Deck{}, err
 	}
 	return deck, nil
+}
+
+func (s *DeckService) DeleteByID(ctx context.Context, deckID, userID int64) error {
+	return s.decks.DeleteDeckByID(ctx, deckID, userID)
 }

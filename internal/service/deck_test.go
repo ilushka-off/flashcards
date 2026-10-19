@@ -64,6 +64,13 @@ func (f *fakeDeckRepository) UpdateDeckByID(_ context.Context, deckID, userID in
 	return f.deck, nil
 }
 
+func (f *fakeDeckRepository) DeleteDeckByID(_ context.Context, deckID, userID int64) error {
+	f.calls++
+	f.gotDeckID = deckID
+	f.gotUserID = userID
+	return f.err
+}
+
 // testUserID owns the decks in these tests; the service must pass it to the repository.
 const testUserID int64 = 42
 
@@ -474,6 +481,36 @@ func TestDeckServiceUpdateByIDRepositoryErrors(t *testing.T) {
 			_, err := svc.UpdateByID(context.Background(), 7, testUserID, domain.DeckUpdate{Name: strPtr("Spanish")})
 			if !errors.Is(err, tt.repoErr) {
 				t.Fatalf("UpdateByID() error = %v, want errors.Is %v", err, tt.repoErr)
+			}
+		})
+	}
+}
+
+func TestDeckServiceDeleteByID(t *testing.T) {
+	tests := []struct {
+		name    string
+		repoErr error
+	}{
+		{"deleted", nil},
+		// someone else's deck and a missing one look the same to the service
+		{"not found or foreign deck", domain.ErrNotFound},
+		{"internal error", errors.New("delete failed")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeDeckRepository{err: tt.repoErr}
+			svc := NewDeckService(repo)
+
+			err := svc.DeleteByID(context.Background(), 7, testUserID)
+			if !errors.Is(err, tt.repoErr) {
+				t.Fatalf("DeleteByID() error = %v, want errors.Is %v", err, tt.repoErr)
+			}
+			if repo.calls != 1 {
+				t.Fatalf("repository called %d times, want 1", repo.calls)
+			}
+			if repo.gotDeckID != 7 || repo.gotUserID != testUserID {
+				t.Errorf("repository got (deck %d, user %d), want (7, %d)", repo.gotDeckID, repo.gotUserID, testUserID)
 			}
 		})
 	}

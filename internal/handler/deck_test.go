@@ -56,6 +56,13 @@ func (f *fakeDeckService) UpdateByID(_ context.Context, deckID, userID int64, in
 	return f.deck, f.err
 }
 
+func (f *fakeDeckService) DeleteByID(_ context.Context, deckID, userID int64) error {
+	f.calls++
+	f.gotDeckID = deckID
+	f.gotUserID = userID
+	return f.err
+}
+
 // testUserID is the authenticated user that auth-middleware would put in the context.
 const testUserID int64 = 42
 
@@ -390,6 +397,15 @@ func TestDeckHandlerWithoutUser(t *testing.T) {
 			},
 		},
 		{
+			name: "delete by id",
+			call: (*DeckHandler).DeleteByID,
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodDelete, "/api/v1/decks/7", nil)
+				r.SetPathValue("id", "7")
+				return r
+			},
+		},
+		{
 			name: "get list",
 			call: (*DeckHandler).GetList,
 			req: func() *http.Request {
@@ -583,6 +599,116 @@ func TestDeckHandlerUpdateByIDErrors(t *testing.T) {
 			req.SetPathValue("id", tt.id)
 
 			h.UpdateByID(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			if tt.svc.calls != tt.wantCalls {
+				t.Errorf("service called %d times, want %d", tt.svc.calls, tt.wantCalls)
+			}
+			if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+				t.Errorf("Content-Type = %q, want application/json", ct)
+			}
+
+			raw := rec.Body.String()
+			if tt.mustNotContain != "" && strings.Contains(raw, tt.mustNotContain) {
+				t.Errorf("response body leaks %q: %s", tt.mustNotContain, raw)
+			}
+
+			var body errorBody
+			if err := json.Unmarshal([]byte(raw), &body); err != nil {
+				t.Fatalf("decode body %q: %v", raw, err)
+			}
+			if body.Error.Code != tt.wantCode {
+				t.Errorf("code = %q, want %q", body.Error.Code, tt.wantCode)
+			}
+			if body.Error.Message != tt.wantMessage {
+				t.Errorf("message = %q, want %q", body.Error.Message, tt.wantMessage)
+			}
+		})
+	}
+}
+
+func TestDeckHandlerDeleteByIDNoContent(t *testing.T) {
+	svc := &fakeDeckService{}
+	h := NewDeckHandler(svc, discardLogger())
+
+	rec := httptest.NewRecorder()
+	req := withUser(httptest.NewRequest(http.MethodDelete, "/api/v1/decks/7", nil))
+	req.SetPathValue("id", "7")
+
+	h.DeleteByID(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if svc.gotDeckID != 7 || svc.gotUserID != testUserID {
+		t.Errorf("service got (deck %d, user %d), want (7, %d)", svc.gotDeckID, svc.gotUserID, testUserID)
+	}
+	// 204 must not carry a body: net/http refuses to write one and returns an error.
+	if rec.Body.Len() != 0 {
+		t.Errorf("body = %q, want empty for 204", rec.Body.String())
+	}
+}
+
+func TestDeckHandlerDeleteByIDErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          string
+		svc         *fakeDeckService
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+		wantCalls   int
+		// mustNotContain guards against leaking internal error text to the client.
+		mustNotContain string
+	}{
+		{
+			name:        "non numeric id",
+			id:          "abc",
+			svc:         &fakeDeckService{},
+			wantStatus:  http.StatusBadRequest,
+			wantCode:    CodeValidation,
+			wantMessage: "некорректный id в path запросе",
+		},
+		{
+			name:        "id below one",
+			id:          "0",
+			svc:         &fakeDeckService{},
+			wantStatus:  http.StatusBadRequest,
+			wantCode:    CodeValidation,
+			wantMessage: "некорректный id в path запросе",
+		},
+		{
+			name:        "missing or foreign deck is not found",
+			id:          "7",
+			svc:         &fakeDeckService{err: domain.ErrNotFound},
+			wantStatus:  http.StatusNotFound,
+			wantCode:    CodeNotFound,
+			wantMessage: "колода не найдена",
+			wantCalls:   1,
+		},
+		{
+			name:           "service internal error hides details",
+			id:             "7",
+			svc:            &fakeDeckService{err: errors.New("pq: password=secret host=10.0.0.1")},
+			wantStatus:     http.StatusInternalServerError,
+			wantCode:       CodeInternal,
+			wantMessage:    msgInternal,
+			wantCalls:      1,
+			mustNotContain: "secret",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewDeckHandler(tt.svc, discardLogger())
+
+			rec := httptest.NewRecorder()
+			req := withUser(httptest.NewRequest(http.MethodDelete, "/api/v1/decks/"+tt.id, nil))
+			req.SetPathValue("id", tt.id)
+
+			h.DeleteByID(rec, req)
 
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
