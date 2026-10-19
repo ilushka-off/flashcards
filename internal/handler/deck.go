@@ -59,13 +59,13 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	userID, ok := userctx.UserIDFrom(r.Context())
 	if !ok {
-		WriteError(w, http.StatusNotFound, CodeNotFound, "колода не найдена")
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
 		return
 	}
 
 	deck, err := h.decks.GetByID(r.Context(), deckID, userID)
 	if err != nil {
-		writeServiceError(w, r, h.logger, err, "")
+		writeServiceError(w, r, h.logger, err, "колода не найдена")
 		return
 	}
 	WriteJSON(w, http.StatusOK, deck)

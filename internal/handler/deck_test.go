@@ -345,8 +345,9 @@ func TestDeckHandlerGetListInternalError(t *testing.T) {
 	}
 }
 
-// Without an authenticated user in the context every deck endpoint answers 404
-// and must not reach the service with a zero user id.
+// Without an authenticated user in the context every deck endpoint answers 401
+// (who is asking is unknown, unlike 404 "this user has no such deck") and must
+// not reach the service with a zero user id.
 func TestDeckHandlerWithoutUser(t *testing.T) {
 	tests := []struct {
 		name string
@@ -386,8 +387,8 @@ func TestDeckHandlerWithoutUser(t *testing.T) {
 			rec := httptest.NewRecorder()
 			tt.call(h, rec, tt.req())
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 			}
 			if svc.calls != 0 {
 				t.Errorf("service called %d times, want 0 without a user", svc.calls)
@@ -397,8 +398,11 @@ func TestDeckHandlerWithoutUser(t *testing.T) {
 			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 				t.Fatalf("decode body %q: %v", rec.Body.String(), err)
 			}
-			if body.Error.Code != CodeNotFound {
-				t.Errorf("code = %q, want %q", body.Error.Code, CodeNotFound)
+			if body.Error.Code != CodeUnauthorized {
+				t.Errorf("code = %q, want %q", body.Error.Code, CodeUnauthorized)
+			}
+			if body.Error.Message != "требуется авторизация" {
+				t.Errorf("message = %q, want %q", body.Error.Message, "требуется авторизация")
 			}
 		})
 	}
