@@ -79,12 +79,9 @@ func normalizeEmail(email string) (string, bool) {
 }
 
 func (s *UserService) Register(ctx context.Context, in domain.UserCreate) (domain.User, string, error) {
-	email, ok := normalizeEmail(in.Email)
-	if !ok || utf8.RuneCountInString(email) > maxEmailLength {
-		return domain.User{}, "", ErrInvalidInput
-	}
-	if len(in.Password) < minPasswordLength || len(in.Password) > maxPasswordLength {
-		return domain.User{}, "", ErrInvalidInput
+	email, err := checkCredentials(in.Email, in.Password)
+	if err != nil {
+		return domain.User{}, "", err
 	}
 
 	passwordHash, err := auth.HashPassword(in.Password)
@@ -114,12 +111,9 @@ func (s *UserService) Register(ctx context.Context, in domain.UserCreate) (domai
 }
 
 func (s *UserService) Login(ctx context.Context, email, password string) (domain.TokenPair, error) {
-	email, ok := normalizeEmail(email)
-	if !ok || utf8.RuneCountInString(email) > maxEmailLength {
-		return domain.TokenPair{}, ErrInvalidInput
-	}
-	if len(password) < minPasswordLength || len(password) > maxPasswordLength {
-		return domain.TokenPair{}, ErrInvalidInput
+	email, err := checkCredentials(email, password)
+	if err != nil {
+		return domain.TokenPair{}, err
 	}
 
 	user, err := s.users.GetUserByEmail(ctx, email)
@@ -143,13 +137,9 @@ func (s *UserService) Login(ctx context.Context, email, password string) (domain
 	if err != nil {
 		return domain.TokenPair{}, fmt.Errorf("generate refresh token: %w", err)
 	}
-	tokenHash, err := auth.HashRefreshToken(rawRefresh)
-	if err != nil {
-		return domain.TokenPair{}, fmt.Errorf("hash refresh token: %w", err)
-	}
 	if err := s.refreshTokens.CreateRefreshToken(ctx, domain.NewRefreshToken{
 		UserID:    user.ID,
-		TokenHash: tokenHash,
+		TokenHash: auth.HashRefreshToken(rawRefresh),
 		ExpiresAt: time.Now().Add(s.refreshTokenTTL),
 	}); err != nil {
 		return domain.TokenPair{}, fmt.Errorf("store refresh token: %w", err)
@@ -159,4 +149,15 @@ func (s *UserService) Login(ctx context.Context, email, password string) (domain
 		AccessToken:  accessToken,
 		RefreshToken: rawRefresh,
 	}, nil
+}
+
+func checkCredentials(email, password string) (string, error) {
+	email, ok := normalizeEmail(email)
+	if !ok || utf8.RuneCountInString(email) > maxEmailLength {
+		return "", ErrInvalidInput
+	}
+	if len(password) < minPasswordLength || len(password) > maxPasswordLength {
+		return "", ErrInvalidInput
+	}
+	return email, nil
 }

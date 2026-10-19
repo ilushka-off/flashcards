@@ -19,7 +19,7 @@ func NewRefreshRepository(pool *pgxpool.Pool) *RefreshRepository {
 }
 
 func (r *RefreshRepository) CreateRefreshToken(ctx context.Context, in domain.NewRefreshToken) error {
-	query := `INSERT INTO referesh_tokens(user_id, refresh_token, created_at) VALUES ($1, $2, $3)`
+	query := `INSERT INTO refresh_tokens(user_id, token_hash, expires_at) VALUES ($1, $2, $3)`
 
 	_, err := r.pool.Exec(ctx, query, in.UserID, in.TokenHash, in.ExpiresAt)
 	if err != nil {
@@ -32,11 +32,11 @@ func (r *RefreshRepository) CreateRefreshToken(ctx context.Context, in domain.Ne
 func (r *RefreshRepository) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (domain.RefreshToken, error) {
 	var refreshToken domain.RefreshToken
 
-	query := `SELECT id, user_id, token_hash, expires_at, refresh_token FROM refresh_tokens WHERE refresh_token = $1`
+	query := `SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = $1`
 
-	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(&refreshToken.ID, &refreshToken.UserID, &refreshToken.TokenHash, &refreshToken.ExpiresAt)
+	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(&refreshToken.ID, &refreshToken.UserID, &refreshToken.ExpiresAt, &refreshToken.RevokedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.RefreshToken{}, fmt.Errorf("refresh token not found: %w", err)
+		return domain.RefreshToken{}, domain.ErrNotFound
 	}
 	if err != nil {
 		return domain.RefreshToken{}, fmt.Errorf("could not get refresh token: %w", err)
@@ -45,7 +45,7 @@ func (r *RefreshRepository) GetRefreshTokenByHash(ctx context.Context, tokenHash
 }
 
 func (r *RefreshRepository) RevokeRefreshToken(ctx context.Context, refreshTokenID int64) error {
-	query := `UPDATE refresh_tokens SER revoked_at = now() WHERE id = $1 AND revoked_At IS NULL`
+	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`
 
 	_, err := r.pool.Exec(ctx, query, refreshTokenID)
 	if err != nil {
@@ -54,7 +54,7 @@ func (r *RefreshRepository) RevokeRefreshToken(ctx context.Context, refreshToken
 	return nil
 }
 func (r *RefreshRepository) RevokeAllForUser(ctx context.Context, userID int64) error {
-	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_At IS NULL`
+	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`
 	_, err := r.pool.Exec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("could not revoke all refresh tokens: %w", err)

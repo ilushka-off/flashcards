@@ -29,17 +29,17 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-// TokenPair — информация о токенах, так как их отдает API.
+// TokenPair — пара токенов, которую сервис возвращает хендлеру (внутренний тип)
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string
+	RefreshToken string
 }
 
 // NewRefreshToken — то, что вставляем (хеш + срок считает сервис).
 type NewRefreshToken struct {
-	UserID    int64     `json:"user_id"`
-	TokenHash string    `json:"token_hash"`
-	ExpiresAt time.Time `json:"expires_at"`
+	UserID    int64
+	TokenHash string
+	ExpiresAt time.Time
 }
 
 // RefreshToken — строка как она лежит в БД.

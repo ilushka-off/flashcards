@@ -18,7 +18,7 @@ func GenerateRefreshToken() (string, error) {
 }
 
 // HashRefreshToken — sha256-хеш для хранения и поиска. Детерминированный.
-func HashRefreshToken(raw string) (string, error) {
+func HashRefreshToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }
