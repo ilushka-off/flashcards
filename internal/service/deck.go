@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -13,6 +14,7 @@ type DeckRepository interface {
 	CreateDeck(ctx context.Context, in domain.DeckCreate, userID int64) (domain.Deck, error)
 	GetDeckByID(ctx context.Context, deckID, userID int64) (domain.Deck, error)
 	GetDeckList(ctx context.Context, userID int64) ([]domain.Deck, error)
+	UpdateDeckByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error)
 }
 
 const (
@@ -41,7 +43,7 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate, userID i
 	if utf8.RuneCountInString(in.Name) > maxDeckNameLen {
 		return domain.Deck{}, &domain.ValidationError{
 			Field:   "name",
-			Message: "не длиннее 100 символов",
+			Message: fmt.Sprintf("не длиннее %d символов", maxDeckNameLen),
 		}
 	}
 
@@ -56,7 +58,7 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate, userID i
 	if utf8.RuneCountInString(in.Description) > maxDeckDescriptionLen {
 		return domain.Deck{}, &domain.ValidationError{
 			Field:   "description",
-			Message: "не длиннее 500 символов",
+			Message: fmt.Sprintf("не длиннее %d символов", maxDeckDescriptionLen),
 		}
 	}
 
@@ -84,4 +86,47 @@ func (s *DeckService) GetList(ctx context.Context, userID int64) ([]domain.Deck,
 		decks = []domain.Deck{}
 	}
 	return decks, nil
+}
+
+func (s *DeckService) UpdateByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error) {
+	if in.Name == nil && in.Description == nil {
+		return domain.Deck{}, &domain.ValidationError{
+			Field:   "body",
+			Message: "нужно передать хотя бы одно поле: name, description",
+		}
+	}
+
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return domain.Deck{}, &domain.ValidationError{
+				Field:   "name",
+				Message: "не может быть пустым",
+			}
+		}
+		if utf8.RuneCountInString(name) > maxDeckNameLen {
+			return domain.Deck{}, &domain.ValidationError{
+				Field:   "name",
+				Message: fmt.Sprintf("не длиннее %d символов", maxDeckNameLen),
+			}
+		}
+		in.Name = &name
+	}
+
+	if in.Description != nil {
+		description := strings.TrimSpace(*in.Description)
+		if utf8.RuneCountInString(description) > maxDeckDescriptionLen {
+			return domain.Deck{}, &domain.ValidationError{
+				Field:   "description",
+				Message: fmt.Sprintf("не длиннее %d символов", maxDeckDescriptionLen),
+			}
+		}
+		in.Description = &description
+	}
+
+	deck, err := s.decks.UpdateDeckByID(ctx, deckID, userID, in)
+	if err != nil {
+		return domain.Deck{}, err
+	}
+	return deck, nil
 }

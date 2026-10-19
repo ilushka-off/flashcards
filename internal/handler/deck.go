@@ -14,6 +14,7 @@ type DeckService interface {
 	Create(ctx context.Context, in domain.DeckCreate, userID int64) (domain.Deck, error)
 	GetByID(ctx context.Context, deckID, userID int64) (domain.Deck, error)
 	GetList(ctx context.Context, userID int64) ([]domain.Deck, error)
+	UpdateByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error)
 }
 
 type DeckHandler struct {
@@ -31,14 +32,13 @@ func NewDeckHandler(decks DeckService, logger *slog.Logger) *DeckHandler {
 func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var in domain.DeckCreate
 
-	if err := decodeJSON(w, r, &in); err != nil {
-		writeServiceError(w, r, h.logger, err, "")
+	userID, ok := getUserID(w, r)
+	if !ok {
 		return
 	}
 
-	userID, ok := userctx.UserIDFrom(r.Context())
-	if !ok {
-		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
+	if err := decodeJSON(w, r, &in); err != nil {
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 
@@ -57,9 +57,8 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, ok := userctx.UserIDFrom(r.Context())
+	userID, ok := getUserID(w, r)
 	if !ok {
-		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
 		return
 	}
 
@@ -72,9 +71,8 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DeckHandler) GetList(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userctx.UserIDFrom(r.Context())
+	userID, ok := getUserID(w, r)
 	if !ok {
-		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
 		return
 	}
 
@@ -84,4 +82,39 @@ func (h *DeckHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	WriteJSON(w, http.StatusOK, Items[domain.Deck]{Items: decks})
+}
+
+func (h *DeckHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
+	var in domain.DeckUpdate
+
+	userID, ok := getUserID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := decodeJSON(w, r, &in); err != nil {
+		writeServiceError(w, r, h.logger, err, "")
+		return
+	}
+
+	deckID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || deckID < 1 {
+		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректный id в path запросе")
+		return
+	}
+
+	deck, err := h.decks.UpdateByID(r.Context(), deckID, userID, in)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err, "колода не найдена")
+		return
+	}
+	WriteJSON(w, http.StatusOK, deck)
+}
+
+func getUserID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	userID, ok := userctx.UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
+	}
+	return userID, ok
 }
