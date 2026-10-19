@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestIssueAndParse(t *testing.T) {
+func TestIssueAndVerify(t *testing.T) {
 	const userID = 42
 
 	manager := NewTokenManager([]byte("test-secret"), time.Hour)
@@ -21,14 +21,14 @@ func TestIssueAndParse(t *testing.T) {
 
 	got, err := manager.Verify(token)
 	if err != nil {
-		t.Fatalf("Parse() unexpected error: %v", err)
+		t.Fatalf("Verify() unexpected error: %v", err)
 	}
 	if got != userID {
-		t.Errorf("Parse() userID = %d, want %d", got, userID)
+		t.Errorf("Verify() userID = %d, want %d", got, userID)
 	}
 }
 
-func TestParseRejectsInvalidTokens(t *testing.T) {
+func TestVerifyRejectsInvalidTokens(t *testing.T) {
 	const secret = "test-secret"
 
 	manager := NewTokenManager([]byte(secret), time.Hour)
@@ -75,10 +75,10 @@ func TestParseRejectsInvalidTokens(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userID, err := tt.manager.Verify(tt.token)
 			if !errors.Is(err, ErrInvalidToken) {
-				t.Errorf("Parse() error = %v, want %v", err, ErrInvalidToken)
+				t.Errorf("Verify() error = %v, want %v", err, ErrInvalidToken)
 			}
 			if userID != 0 {
-				t.Errorf("Parse() userID = %d, want 0 on error", userID)
+				t.Errorf("Verify() userID = %d, want 0 on error", userID)
 			}
 		})
 	}

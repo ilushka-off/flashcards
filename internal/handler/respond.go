@@ -8,10 +8,11 @@ import (
 
 // Коды ошибок из схемы Error в api/openapi.yaml.
 const (
-	CodeValidation = "validation_error"
-	CodeNotFound   = "not_found"
-	CodeConflict   = "conflict"
-	CodeInternal   = "internal"
+	CodeValidation   = "validation_error"
+	CodeNotFound     = "not_found"
+	CodeConflict     = "conflict"
+	CodeInternal     = "internal"
+	CodeUnauthorized = "unauthorized"
 )
 
 const msgInternal = "внутренняя ошибка"

@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	tokenTTL = 15 * time.Minute
+	accessTokenTTL  = 15 * time.Minute
+	refreshTokenTTL = 30 * 24 * time.Hour
 )
 
 func main() {
@@ -50,15 +51,17 @@ func run() error {
 
 	healthHandler := handler.NewHealthHandler(pool, logger)
 
-	tokenManager := auth.NewTokenManager([]byte(cfg.JWTSecret), tokenTTL)
+	tokenManager := auth.NewTokenManager([]byte(cfg.JWTSecret), accessTokenTTL)
+
+	refreshRepository := postgres.NewRefreshRepository(pool)
 
 	deckRepository := postgres.NewDeckRepository(pool)
 	deckService := service.NewDeckService(deckRepository)
 	deckHandler := handler.NewDeckHandler(deckService, logger)
 
 	userRepository := postgres.NewUserRepository(pool)
-	userService := service.NewUserService(userRepository, tokenManager)
-	userHandler := handler.NewUserHandler(userService, tokenTTL, cfg.CookieSecure, logger)
+	userService := service.NewUserService(userRepository, tokenManager, refreshRepository, refreshTokenTTL)
+	userHandler := handler.NewUserHandler(userService, accessTokenTTL, cfg.CookieSecure, logger)
 
 	router := handler.NewRouter(deckHandler, healthHandler, userHandler, logger)
 

@@ -36,7 +36,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 
 	_, err = pool.Exec(context.Background(),
-		`TRUNCATE reviews, cards, decks, users RESTART IDENTITY CASCADE`)
+		`TRUNCATE refresh_tokens, reviews, cards, decks, users RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate tables: %v", err)
 	}

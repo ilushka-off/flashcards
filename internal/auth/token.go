@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -17,10 +18,9 @@ var (
 // CookieName — имя cookie, в которой передаётся токен аутентификации.
 const CookieName = "token"
 
-// Claims — полезная нагрузка токена: стандартные поля JWT и идентификатор пользователя.
+// Claims — полезная нагрузка токена: только стандартные поля JWT.
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID int64
 }
 
 // TokenManager выпускает и проверяет JWT-токены, подписанные HS256.
@@ -42,11 +42,10 @@ func NewTokenManager(secret []byte, accessTokenTTL time.Duration) *TokenManager 
 func (m *TokenManager) Issue(userID int64) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   fmt.Sprintf("%d", userID),
+			Subject:   strconv.FormatInt(userID, 10),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.accessTokenTTL)),
 		},
-		UserID: userID,
 	})
 	tokenString, err := token.SignedString(m.secret)
 	if err != nil {
@@ -55,7 +54,7 @@ func (m *TokenManager) Issue(userID int64) (string, error) {
 	return tokenString, nil
 }
 
-// Verify Parse проверяет подпись и срок действия токена и возвращает идентификатор
+// Verify проверяет подпись и срок действия токена и возвращает идентификатор
 // пользователя. Для невалидного токена возвращает ошибку, обёрнутую ErrInvalidToken.
 func (m *TokenManager) Verify(tokenString string) (int64, error) {
 	claims := &Claims{}
@@ -70,5 +69,9 @@ func (m *TokenManager) Verify(tokenString string) (int64, error) {
 		return 0, fmt.Errorf("verify token: %w: %w", ErrInvalidToken, err)
 	}
 
-	return claims.UserID, nil
+	userID, err := strconv.ParseInt(claims.Subject, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("verify token: %w: invalid subject %q", ErrInvalidToken, claims.Subject)
+	}
+	return userID, nil
 }

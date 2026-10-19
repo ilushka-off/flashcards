@@ -126,6 +126,16 @@ func TestLoad(t *testing.T) {
 			env:     map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": ""},
 			wantErr: ErrJWTSecretNotFound,
 		},
+		{
+			name:        "jwt secret shorter than 32 bytes",
+			env:         map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": strings.Repeat("a", 31)},
+			wantErrText: "JWT_SECRET",
+		},
+		{
+			name:        "malformed cookie secure",
+			env:         map[string]string{"DATABASE_URI": validDB, "JWT_SECRET": validSecret, "COOKIE_SECURE": "yesplease"},
+			wantErrText: "COOKIE_SECURE",
+		},
 	}
 
 	for _, tt := range tests {

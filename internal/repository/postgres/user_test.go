@@ -13,7 +13,7 @@ func TestUserRepositoryCreateUser(t *testing.T) {
 	ctx := context.Background()
 	repository := NewUserRepository(testPool(t))
 
-	user, err := repository.CreateUser(ctx, domain.UserCreate{Email: "test@mail.ru", Password: "test"})
+	user, err := repository.CreateUser(ctx, domain.NewUser{Email: "test@mail.ru", PasswordHash: "test"})
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -28,9 +28,9 @@ func TestUserRepositoryCreateUser(t *testing.T) {
 	}
 
 	t.Run("duplicate email", func(t *testing.T) {
-		_, err := repository.CreateUser(ctx, domain.UserCreate{
-			Email:    "test@mail.ru",
-			Password: "test",
+		_, err := repository.CreateUser(ctx, domain.NewUser{
+			Email:        "test@mail.ru",
+			PasswordHash: "test",
 		})
 		if !errors.Is(err, domain.ErrEmailExists) {
 			t.Fatalf("error : %v, want %v", err, domain.ErrEmailExists)
@@ -38,9 +38,9 @@ func TestUserRepositoryCreateUser(t *testing.T) {
 	})
 
 	t.Run("email longer than the column", func(t *testing.T) {
-		_, err := repository.CreateUser(ctx, domain.UserCreate{
-			Email:    strings.Repeat("a", 256),
-			Password: "test",
+		_, err := repository.CreateUser(ctx, domain.NewUser{
+			Email:        strings.Repeat("a", 256),
+			PasswordHash: "test",
 		})
 		if err == nil {
 			t.Fatal("expected error for an oversized email")

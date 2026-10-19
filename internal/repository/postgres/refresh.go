@@ -1,0 +1,66 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/ilushka-off/flashcards/internal/domain"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// RefreshRepository хранит refresh-токены в таблице refresh_tokens и реализует
+// service.RefreshStore поверх пула pgx.
+type RefreshRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewRefreshRepository(pool *pgxpool.Pool) *RefreshRepository {
+	return &RefreshRepository{pool: pool}
+}
+
+func (r *RefreshRepository) CreateRefreshToken(ctx context.Context, in domain.NewRefreshToken) error {
+	query := `INSERT INTO refresh_tokens(user_id, token_hash, expires_at) VALUES ($1, $2, $3)`
+
+	_, err := r.pool.Exec(ctx, query, in.UserID, in.TokenHash, in.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("could not create refresh token: %w", err)
+	}
+
+	return nil
+}
+
+func (r *RefreshRepository) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (domain.RefreshToken, error) {
+	var refreshToken domain.RefreshToken
+
+	query := `SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = $1`
+
+	err := r.pool.QueryRow(ctx, query, tokenHash).Scan(&refreshToken.ID, &refreshToken.UserID, &refreshToken.ExpiresAt, &refreshToken.RevokedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.RefreshToken{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.RefreshToken{}, fmt.Errorf("could not get refresh token: %w", err)
+	}
+	return refreshToken, nil
+}
+
+func (r *RefreshRepository) RevokeRefreshToken(ctx context.Context, refreshTokenID int64) error {
+	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`
+
+	_, err := r.pool.Exec(ctx, query, refreshTokenID)
+	if err != nil {
+		return fmt.Errorf("could not revoke refresh token: %w", err)
+	}
+	return nil
+}
+
+func (r *RefreshRepository) RevokeAllForUser(ctx context.Context, userID int64) error {
+	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`
+	_, err := r.pool.Exec(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("could not revoke all refresh tokens: %w", err)
+	}
+	return nil
+}
