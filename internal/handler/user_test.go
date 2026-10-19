@@ -18,7 +18,6 @@ import (
 // fakeUserRegistrar implements UserRegistrar with canned results for handler tests.
 type fakeUserRegistrar struct {
 	user     domain.User
-	ID       int64
 	token    string
 	err      error
 	pair     domain.TokenPair

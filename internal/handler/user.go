@@ -107,12 +107,12 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := userctx.UserIDFrom(r.Context())
 	if !ok {
-		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "пользователь требуется авторизация")
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
 		return
 	}
 	user, err := h.userService.GetUserByID(r.Context(), userID)
 	if err != nil {
-		writeServiceError(w, r, h.logger, err, "")
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
 		return
 	}
 	WriteJSON(w, http.StatusOK, user)

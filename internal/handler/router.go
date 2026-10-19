@@ -23,22 +23,19 @@ func NewRouter(decksHandler *DeckHandler, healthHandler *HealthHandler, userHand
 
 	r.Get("/health", healthHandler.Check)
 
-	r.Group(func(r chi.Router) {
-		r.Route("/api/v1", func(r chi.Router) {
-			r.Route("/auth", func(r chi.Router) {
-				r.Post("/register", userHandler.Register)
-				r.Post("/login", userHandler.Login)
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", userHandler.Register)
+			r.Post("/login", userHandler.Login)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(Auth(token))
+			r.Get("/auth/me", userHandler.Me)
+			r.Route("/decks", func(r chi.Router) {
+				r.Get("/", decksHandler.GetList)
+				r.Get("/{id}", decksHandler.GetByID)
+				r.Post("/", decksHandler.Create)
 			})
-			r.Group(func(r chi.Router) {
-				r.Use(Auth(token))
-				r.Get("/auth/me", userHandler.Me)
-				r.Route("/decks", func(r chi.Router) {
-					r.Get("/", decksHandler.GetList)
-					r.Get("/{id}", decksHandler.GetByID)
-					r.Post("/", decksHandler.Create)
-				})
-			})
-
 		})
 	})
 
