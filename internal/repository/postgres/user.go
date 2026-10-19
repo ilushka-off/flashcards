@@ -51,3 +51,17 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (doma
 
 	return user, nil
 }
+
+func (r *UserRepository) GetUserByID(ctx context.Context, id int64) (domain.User, error) {
+	var user domain.User
+	query := `SELECT id, email, password_hash, created_at FROM users WHERE id = $1`
+
+	err := r.pool.QueryRow(ctx, query, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.User{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("get user by id: %w", err)
+	}
+	return user, nil
+}

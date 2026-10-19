@@ -31,6 +31,7 @@ const (
 type UserRepository interface {
 	CreateUser(ctx context.Context, in domain.NewUser) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
+	GetUserByID(ctx context.Context, userID int64) (domain.User, error)
 }
 
 // RefreshStore — то, что сервису нужно от хранилища refresh-токенов: создание,
@@ -154,6 +155,14 @@ func (s *UserService) Login(ctx context.Context, email, password string) (domain
 		AccessToken:  accessToken,
 		RefreshToken: rawRefresh,
 	}, nil
+}
+
+func (s *UserService) GetUserByID(ctx context.Context, userID int64) (domain.User, error) {
+	user, err := s.users.GetUserByID(ctx, userID)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("get user by id: %w", err)
+	}
+	return user, nil
 }
 
 func checkCredentials(email, password string) (string, error) {

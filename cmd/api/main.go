@@ -63,7 +63,7 @@ func run() error {
 	userService := service.NewUserService(userRepository, tokenManager, refreshRepository, refreshTokenTTL)
 	userHandler := handler.NewUserHandler(userService, accessTokenTTL, cfg.CookieSecure, logger)
 
-	router := handler.NewRouter(deckHandler, healthHandler, userHandler, logger)
+	router := handler.NewRouter(deckHandler, healthHandler, userHandler, tokenManager, logger)
 
 	logger.Info("server started", "port", cfg.HTTPPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.HTTPPort), router); err != nil {

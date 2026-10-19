@@ -31,6 +31,9 @@ func (f *fakeUserRegistrar) Register(_ context.Context, _ domain.UserCreate) (do
 func (f *fakeUserRegistrar) Login(_ context.Context, _, _ string) (domain.TokenPair, error) {
 	return f.pair, f.loginErr
 }
+func (f *fakeUserRegistrar) GetUserByID(_ context.Context, _ int64) (domain.User, error) {
+	return f.user, f.err
+}
 
 func newTestUserHandler(reg UserRegistrar) *UserHandler {
 	return NewUserHandler(reg, 15*time.Minute, false, discardLogger())

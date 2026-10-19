@@ -17,6 +17,7 @@ import (
 type fakeUserRepository struct {
 	gotInput domain.NewUser
 	gotEmail string
+	gotID    int64
 	calls    int
 	user     domain.User
 	err      error
@@ -40,6 +41,15 @@ func (f *fakeUserRepository) GetUserByEmail(_ context.Context, email string) (do
 		return domain.User{}, f.getErr
 	}
 	return f.getUser, nil
+}
+
+func (f *fakeUserRepository) GetUserByID(_ context.Context, userID int64) (domain.User, error) {
+	f.calls++
+	f.gotID = userID
+	if f.getErr != nil {
+		return domain.User{}, f.getErr
+	}
+	return f.user, nil
 }
 
 // fakeTokenIssuer implements TokenIssuer so tests can force the "token not issued"
