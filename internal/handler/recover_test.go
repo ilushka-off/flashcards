@@ -57,7 +57,7 @@ func TestDeckHandlerLogsInternalErrorOnce(t *testing.T) {
 	h := NewDeckHandler(svc, logger)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(`{"name":"Spanish","language":"es"}`))
+	req := withUser(httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(`{"name":"Spanish","language":"es"}`)))
 	h.Create(rec, req)
 
 	if rec.Code != http.StatusInternalServerError {

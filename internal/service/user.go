@@ -121,8 +121,6 @@ func (s *UserService) Login(ctx context.Context, email, password string) (domain
 
 	user, err := s.users.GetUserByEmail(ctx, email)
 	if errors.Is(err, domain.ErrNotFound) {
-		// Тратим время на фиктивную bcrypt-сверку, чтобы по времени ответа нельзя
-		// было отличить несуществующий email от существующего с неверным паролем.
 		auth.DummyPasswordCheck(password)
 		return domain.TokenPair{}, ErrInvalidCredentials
 	}

@@ -21,12 +21,12 @@ func NewDeckRepository(pool *pgxpool.Pool) *DeckRepository {
 	}
 }
 
-func (r *DeckRepository) CreateDeck(ctx context.Context, in domain.DeckCreate) (domain.Deck, error) {
+func (r *DeckRepository) CreateDeck(ctx context.Context, in domain.DeckCreate, userID int64) (domain.Deck, error) {
 	var deckID int64
 	var createdAt time.Time
 
-	query := `INSERT INTO decks(name, language, description) VALUES ($1, $2, $3) RETURNING id, created_at`
-	err := r.pool.QueryRow(ctx, query, in.Name, in.Language, in.Description).Scan(&deckID, &createdAt)
+	query := `INSERT INTO decks(name, language, description, user_id) VALUES ($1, $2, $3, $4) RETURNING id, created_at`
+	err := r.pool.QueryRow(ctx, query, in.Name, in.Language, in.Description, userID).Scan(&deckID, &createdAt)
 	if err != nil {
 		return domain.Deck{}, fmt.Errorf("create deck: %w", err)
 	}
@@ -41,16 +41,19 @@ func (r *DeckRepository) CreateDeck(ctx context.Context, in domain.DeckCreate) (
 	}, nil
 }
 
-func (r *DeckRepository) GetDeckList(ctx context.Context) ([]domain.Deck, error) {
+func (r *DeckRepository) GetDeckList(ctx context.Context, userID int64) ([]domain.Deck, error) {
 	decks := make([]domain.Deck, 0)
 
 	query := `SELECT d.id, d."name", d."language", d.description, COUNT(c.id) AS total_cards, COUNT(c.id) FILTER(WHERE c.due_at <= now()) AS due_cards, d.created_at
 				FROM decks d
 				LEFT JOIN cards c ON d.id = c.deck_id
-				GROUP BY d.id
-				ORDER BY d.created_at DESC, d.id DESC`
+				JOIN users u ON u.id = d.user_id
+				WHERE d.user_id = $1
+				GROUP BY d.id, d."name", d."language", d.description
+				ORDER BY d.created_at DESC, d.id
+				`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get decks: %w", err)
 	}
@@ -74,17 +77,18 @@ func (r *DeckRepository) GetDeckList(ctx context.Context) ([]domain.Deck, error)
 	return decks, nil
 }
 
-func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64) (domain.Deck, error) {
+func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64, userID int64) (domain.Deck, error) {
 	var deck domain.Deck
 
 	query := `SELECT d.id, d."name", d."language", d.description, COUNT(c.id) AS total_cards, COUNT(c.id) FILTER(WHERE c.due_at <= now()) AS due_cards, d.created_at
 				FROM decks d
 				LEFT JOIN cards c ON d.id = c.deck_id
-				WHERE d.id = $1
+				JOIN users u ON u.id = d.user_id
+				WHERE d.id = $1 AND d.user_id = $2
 				GROUP BY d.id, d."name", d."language", d.description
 				ORDER BY d.created_at DESC, d.id`
 
-	err := r.pool.QueryRow(ctx, query, deckID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.TotalCards, &deck.DueCards, &deck.CreatedAt)
+	err := r.pool.QueryRow(ctx, query, deckID, userID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.TotalCards, &deck.DueCards, &deck.CreatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Deck{}, domain.ErrNotFound
