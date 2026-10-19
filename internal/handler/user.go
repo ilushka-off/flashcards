@@ -112,7 +112,7 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := h.userService.GetUserByID(r.Context(), userID)
 	if errors.Is(err, domain.ErrNotFound) {
-		WriteError(w, http.StatusNotFound, CodeNotFound, "пользователь не найден")
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "пользователь не найден")
 		return
 	}
 	if err != nil {
