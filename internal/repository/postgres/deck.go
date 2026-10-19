@@ -123,7 +123,7 @@ func (r *DeckRepository) UpdateDeckByID(ctx context.Context, deckID, userID int6
 	return deck, nil
 }
 
-func (r *DeckRepository) DeleteDeckByID(ctx context.Context, deckID int64, userID int64) error {
+func (r *DeckRepository) DeleteDeckByID(ctx context.Context, deckID, userID int64) error {
 	query := `DELETE FROM decks WHERE id = $1 AND user_id = $2`
 	tag, err := r.pool.Exec(ctx, query, deckID, userID)
 	if err != nil {
