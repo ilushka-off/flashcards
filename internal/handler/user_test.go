@@ -18,6 +18,7 @@ import (
 // fakeUserRegistrar implements UserRegistrar with canned results for handler tests.
 type fakeUserRegistrar struct {
 	user     domain.User
+	ID       int64
 	token    string
 	err      error
 	pair     domain.TokenPair
@@ -30,6 +31,9 @@ func (f *fakeUserRegistrar) Register(_ context.Context, _ domain.UserCreate) (do
 
 func (f *fakeUserRegistrar) Login(_ context.Context, _, _ string) (domain.TokenPair, error) {
 	return f.pair, f.loginErr
+}
+func (f *fakeUserRegistrar) GetUserByID(_ context.Context, _ int64) (domain.User, error) {
+	return f.user, f.err
 }
 
 func newTestUserHandler(reg UserRegistrar) *UserHandler {

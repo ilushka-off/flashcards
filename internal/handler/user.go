@@ -10,12 +10,14 @@ import (
 	"github.com/ilushka-off/flashcards/internal/auth"
 	"github.com/ilushka-off/flashcards/internal/domain"
 	"github.com/ilushka-off/flashcards/internal/service"
+	"github.com/ilushka-off/flashcards/internal/userctx"
 )
 
 // UserRegistrar — то, что хендлеру нужно от сервиса пользователей.
 type UserRegistrar interface {
 	Register(ctx context.Context, in domain.UserCreate) (domain.User, string, error)
 	Login(ctx context.Context, email, password string) (domain.TokenPair, error)
+	GetUserByID(ctx context.Context, userID int64) (domain.User, error)
 }
 
 // UserHandler обслуживает регистрацию и аутентификацию пользователей.
@@ -100,4 +102,18 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		TokenType:    "Bearer",
 		ExpiresIn:    int(h.tokenTTL.Seconds()),
 	})
+}
+
+func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userID, ok := userctx.UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "пользователь требуется авторизация")
+		return
+	}
+	user, err := h.userService.GetUserByID(r.Context(), userID)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err, "")
+		return
+	}
+	WriteJSON(w, http.StatusOK, user)
 }

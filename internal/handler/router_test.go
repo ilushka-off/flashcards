@@ -5,25 +5,36 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/ilushka-off/flashcards/internal/auth"
 	"github.com/ilushka-off/flashcards/internal/domain"
 )
+
+const testJWTSecret = "test-secret-at-least-32-bytes-long"
 
 // newTestRouter wires NewRouter with in-memory fakes so routing can be tested
 // without a database. The DeckHandler is built on fakeDeckService instead of the
 // real service+repository, so no Postgres connection is needed.
-func newTestRouter(svc DeckService) http.Handler {
+func newTestRouter(svc DeckService) (http.Handler, *auth.TokenManager) {
+	tm := auth.NewTokenManager([]byte(testJWTSecret), time.Hour)
 	decks := NewDeckHandler(svc, discardLogger())
 	health := NewHealthHandler(fakePinger{}, discardLogger())
-	return NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), discardLogger())
+	router := NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), tm, discardLogger())
+	return router, tm
 }
 
 func TestRouterGetByIDReachesHandler(t *testing.T) {
 	svc := &fakeDeckService{deck: domain.Deck{ID: 7, Name: "Spanish", Language: domain.LanguageES}}
-	router := newTestRouter(svc)
+	router, tm := newTestRouter(svc)
+	token, err := tm.Issue(1)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -41,7 +52,7 @@ func TestRouterGetByIDReachesHandler(t *testing.T) {
 }
 
 func TestRouterUnknownPathReturns404(t *testing.T) {
-	router := newTestRouter(&fakeDeckService{})
+	router, _ := newTestRouter(&fakeDeckService{})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/unknown", nil)
