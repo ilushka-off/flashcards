@@ -101,8 +101,6 @@ func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64, userID i
 func (r *DeckRepository) UpdateDeckByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error) {
 	var deck domain.Deck
 
-	// UPDATE и подсчёт карточек одним запросом: ответ PATCH — полная колода.
-	// Если колоды нет или она чужая, CTE пуст и запрос не вернёт строк.
 	query := `WITH d AS (
 					UPDATE decks SET name = COALESCE($1, name), description = COALESCE($2, description)
 					WHERE id = $3 AND user_id = $4
@@ -123,4 +121,16 @@ func (r *DeckRepository) UpdateDeckByID(ctx context.Context, deckID, userID int6
 
 	deck.CreatedAt = deck.CreatedAt.UTC()
 	return deck, nil
+}
+
+func (r *DeckRepository) DeleteDeckByID(ctx context.Context, deckID int64, userID int64) error {
+	query := `DELETE FROM decks WHERE id = $1 AND user_id = $2`
+	tag, err := r.pool.Exec(ctx, query, deckID, userID)
+	if err != nil {
+		return fmt.Errorf("delete deck: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
