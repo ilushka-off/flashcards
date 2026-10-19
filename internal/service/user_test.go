@@ -323,3 +323,127 @@ func TestUserServiceRegisterTokenNotIssued(t *testing.T) {
 		t.Errorf("user = %+v, want zero value on issue failure", user)
 	}
 }
+
+func TestUserServiceLoginStoresRefreshExpiry(t *testing.T) {
+	hash, err := auth.HashPassword(validPassword)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	repo := &fakeUserRepository{getUser: domain.User{ID: 42, PasswordHash: hash}}
+	refresh := &fakeRefreshStore{}
+	svc := NewUserService(repo, &fakeTokenIssuer{token: "signed-token"}, refresh, testRefreshTTL)
+
+	before := time.Now()
+	if _, err := svc.Login(context.Background(), "ilya@mail.ru", validPassword); err != nil {
+		t.Fatalf("Login() unexpected error = %v", err)
+	}
+	after := time.Now()
+
+	expires := refresh.created.ExpiresAt
+	if expires.Before(before.Add(testRefreshTTL)) || expires.After(after.Add(testRefreshTTL)) {
+		t.Errorf("ExpiresAt = %v, want now + %v (between %v and %v)",
+			expires, testRefreshTTL, before.Add(testRefreshTTL), after.Add(testRefreshTTL))
+	}
+}
+
+func TestUserServiceLoginInternalErrors(t *testing.T) {
+	hash, err := auth.HashPassword(validPassword)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	storedUser := domain.User{ID: 42, PasswordHash: hash}
+	selectErr := errors.New("select failed")
+	signErr := errors.New("sign failed")
+	insertErr := errors.New("insert failed")
+
+	tests := []struct {
+		name    string
+		repo    *fakeUserRepository
+		issuer  *fakeTokenIssuer
+		refresh *fakeRefreshStore
+		wantErr error
+	}{
+		{
+			name:    "repository lookup fails",
+			repo:    &fakeUserRepository{getErr: selectErr},
+			issuer:  &fakeTokenIssuer{token: "signed-token"},
+			refresh: &fakeRefreshStore{},
+			wantErr: selectErr,
+		},
+		{
+			name:    "access token not issued",
+			repo:    &fakeUserRepository{getUser: storedUser},
+			issuer:  &fakeTokenIssuer{err: signErr},
+			refresh: &fakeRefreshStore{},
+			wantErr: signErr,
+		},
+		{
+			name:    "refresh token not stored",
+			repo:    &fakeUserRepository{getUser: storedUser},
+			issuer:  &fakeTokenIssuer{token: "signed-token"},
+			refresh: &fakeRefreshStore{createErr: insertErr},
+			wantErr: insertErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewUserService(tt.repo, tt.issuer, tt.refresh, testRefreshTTL)
+
+			pair, err := svc.Login(context.Background(), "ilya@mail.ru", validPassword)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("Login() error = %v, want errors.Is %v", err, tt.wantErr)
+			}
+			// An infrastructure failure must not be disguised as bad credentials.
+			if errors.Is(err, ErrInvalidCredentials) {
+				t.Error("an internal error must not map to ErrInvalidCredentials")
+			}
+			// On failure nothing partial should leak out.
+			if pair != (domain.TokenPair{}) {
+				t.Errorf("pair = %+v, want zero value on failure", pair)
+			}
+		})
+	}
+}
+
+func TestUserServiceGetUserByID(t *testing.T) {
+	stored := domain.User{ID: 42, Email: "ilya@mail.ru"}
+	repo := &fakeUserRepository{user: stored}
+	svc := NewUserService(repo, &fakeTokenIssuer{}, &fakeRefreshStore{}, testRefreshTTL)
+
+	got, err := svc.GetUserByID(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("GetUserByID() unexpected error = %v", err)
+	}
+	if repo.gotID != 42 {
+		t.Errorf("looked up id = %d, want 42", repo.gotID)
+	}
+	if got != stored {
+		t.Errorf("GetUserByID() = %+v, want %+v", got, stored)
+	}
+}
+
+func TestUserServiceGetUserByIDErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		repoErr error
+	}{
+		{"not found keeps the sentinel", domain.ErrNotFound},
+		{"repository failure is wrapped", errors.New("select failed")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeUserRepository{getErr: tt.repoErr}
+			svc := NewUserService(repo, &fakeTokenIssuer{}, &fakeRefreshStore{}, testRefreshTTL)
+
+			user, err := svc.GetUserByID(context.Background(), 42)
+			if !errors.Is(err, tt.repoErr) {
+				t.Fatalf("GetUserByID() error = %v, want errors.Is %v", err, tt.repoErr)
+			}
+			if user != (domain.User{}) {
+				t.Errorf("user = %+v, want zero value on error", user)
+			}
+		})
+	}
+}

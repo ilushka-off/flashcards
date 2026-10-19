@@ -12,25 +12,46 @@ import (
 	"testing"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
+	"github.com/ilushka-off/flashcards/internal/userctx"
 )
 
 // fakeDeckService implements DeckService with canned results for handler tests.
+// It records the ids it was called with so tests can assert that the handler
+// passes the authenticated user through.
 type fakeDeckService struct {
-	deck  domain.Deck
-	decks []domain.Deck
-	err   error
+	deck      domain.Deck
+	decks     []domain.Deck
+	err       error
+	calls     int
+	gotDeckID int64
+	gotUserID int64
 }
 
-func (f *fakeDeckService) Create(_ context.Context, _ domain.DeckCreate) (domain.Deck, error) {
+func (f *fakeDeckService) Create(_ context.Context, _ domain.DeckCreate, userID int64) (domain.Deck, error) {
+	f.calls++
+	f.gotUserID = userID
 	return f.deck, f.err
 }
 
-func (f *fakeDeckService) GetByID(_ context.Context, _ int64) (domain.Deck, error) {
+func (f *fakeDeckService) GetByID(_ context.Context, deckID, userID int64) (domain.Deck, error) {
+	f.calls++
+	f.gotDeckID = deckID
+	f.gotUserID = userID
 	return f.deck, f.err
 }
 
-func (f *fakeDeckService) GetList(_ context.Context) ([]domain.Deck, error) {
+func (f *fakeDeckService) GetList(_ context.Context, userID int64) ([]domain.Deck, error) {
+	f.calls++
+	f.gotUserID = userID
 	return f.decks, f.err
+}
+
+// testUserID is the authenticated user that auth-middleware would put in the context.
+const testUserID int64 = 42
+
+// withUser attaches testUserID to the request context, as auth-middleware does.
+func withUser(r *http.Request) *http.Request {
+	return r.WithContext(userctx.WithUserID(r.Context(), testUserID))
 }
 
 func discardLogger() *slog.Logger {
@@ -42,12 +63,15 @@ func TestDeckHandlerCreateCreated(t *testing.T) {
 	h := NewDeckHandler(svc, discardLogger())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(`{"name":"Spanish","language":"es"}`))
+	req := withUser(httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(`{"name":"Spanish","language":"es"}`)))
 
 	h.Create(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusCreated)
+	}
+	if svc.gotUserID != testUserID {
+		t.Errorf("service user id = %d, want %d", svc.gotUserID, testUserID)
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", ct)
@@ -105,7 +129,7 @@ func TestDeckHandlerCreateErrors(t *testing.T) {
 			h := NewDeckHandler(tt.svc, discardLogger())
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(tt.body))
+			req := withUser(httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(tt.body)))
 
 			h.Create(rec, req)
 
@@ -140,13 +164,16 @@ func TestDeckHandlerGetByIDOK(t *testing.T) {
 	h := NewDeckHandler(svc, discardLogger())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)
+	req := withUser(httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil))
 	req.SetPathValue("id", "7")
 
 	h.GetByID(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if svc.gotDeckID != 7 || svc.gotUserID != testUserID {
+		t.Errorf("service got (deck %d, user %d), want (7, %d)", svc.gotDeckID, svc.gotUserID, testUserID)
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", ct)
@@ -220,7 +247,7 @@ func TestDeckHandlerGetByIDErrors(t *testing.T) {
 			h := NewDeckHandler(tt.svc, discardLogger())
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/"+tt.id, nil)
+			req := withUser(httptest.NewRequest(http.MethodGet, "/api/v1/decks/"+tt.id, nil))
 			req.SetPathValue("id", tt.id)
 
 			h.GetByID(rec, req)
@@ -259,12 +286,15 @@ func TestDeckHandlerGetListOK(t *testing.T) {
 	h := NewDeckHandler(svc, discardLogger())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks", nil)
+	req := withUser(httptest.NewRequest(http.MethodGet, "/api/v1/decks", nil))
 
 	h.GetList(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if svc.gotUserID != testUserID {
+		t.Errorf("service user id = %d, want %d", svc.gotUserID, testUserID)
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", ct)
@@ -287,7 +317,7 @@ func TestDeckHandlerGetListInternalError(t *testing.T) {
 	h := NewDeckHandler(svc, discardLogger())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks", nil)
+	req := withUser(httptest.NewRequest(http.MethodGet, "/api/v1/decks", nil))
 
 	h.GetList(rec, req)
 
@@ -312,5 +342,68 @@ func TestDeckHandlerGetListInternalError(t *testing.T) {
 	}
 	if body.Error.Message != msgInternal {
 		t.Errorf("message = %q, want %q", body.Error.Message, msgInternal)
+	}
+}
+
+// Without an authenticated user in the context every deck endpoint answers 401
+// (who is asking is unknown, unlike 404 "this user has no such deck") and must
+// not reach the service with a zero user id.
+func TestDeckHandlerWithoutUser(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(h *DeckHandler, w http.ResponseWriter, r *http.Request)
+		req  func() *http.Request
+	}{
+		{
+			name: "create",
+			call: (*DeckHandler).Create,
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodPost, "/api/v1/decks", strings.NewReader(`{"name":"Spanish","language":"es"}`))
+			},
+		},
+		{
+			name: "get by id",
+			call: (*DeckHandler).GetByID,
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)
+				r.SetPathValue("id", "7")
+				return r
+			},
+		},
+		{
+			name: "get list",
+			call: (*DeckHandler).GetList,
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/api/v1/decks", nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeDeckService{deck: domain.Deck{ID: 7}, decks: []domain.Deck{{ID: 7}}}
+			h := NewDeckHandler(svc, discardLogger())
+
+			rec := httptest.NewRecorder()
+			tt.call(h, rec, tt.req())
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+			}
+			if svc.calls != 0 {
+				t.Errorf("service called %d times, want 0 without a user", svc.calls)
+			}
+
+			var body errorBody
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body %q: %v", rec.Body.String(), err)
+			}
+			if body.Error.Code != CodeUnauthorized {
+				t.Errorf("code = %q, want %q", body.Error.Code, CodeUnauthorized)
+			}
+			if body.Error.Message != "требуется авторизация" {
+				t.Errorf("message = %q, want %q", body.Error.Message, "требуется авторизация")
+			}
+		})
 	}
 }

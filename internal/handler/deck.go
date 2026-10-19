@@ -7,12 +7,13 @@ import (
 	"strconv"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
+	"github.com/ilushka-off/flashcards/internal/userctx"
 )
 
 type DeckService interface {
-	Create(ctx context.Context, in domain.DeckCreate) (domain.Deck, error)
-	GetByID(ctx context.Context, deckID int64) (domain.Deck, error)
-	GetList(ctx context.Context) ([]domain.Deck, error)
+	Create(ctx context.Context, in domain.DeckCreate, userID int64) (domain.Deck, error)
+	GetByID(ctx context.Context, deckID, userID int64) (domain.Deck, error)
+	GetList(ctx context.Context, userID int64) ([]domain.Deck, error)
 }
 
 type DeckHandler struct {
@@ -35,7 +36,13 @@ func (h *DeckHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deck, err := h.decks.Create(r.Context(), in)
+	userID, ok := userctx.UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
+		return
+	}
+
+	deck, err := h.decks.Create(r.Context(), in, userID)
 	if err != nil {
 		writeServiceError(w, r, h.logger, err, "")
 		return
@@ -50,7 +57,13 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deck, err := h.decks.GetByID(r.Context(), deckID)
+	userID, ok := userctx.UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
+		return
+	}
+
+	deck, err := h.decks.GetByID(r.Context(), deckID, userID)
 	if err != nil {
 		writeServiceError(w, r, h.logger, err, "колода не найдена")
 		return
@@ -59,7 +72,13 @@ func (h *DeckHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DeckHandler) GetList(w http.ResponseWriter, r *http.Request) {
-	decks, err := h.decks.GetList(r.Context())
+	userID, ok := userctx.UserIDFrom(r.Context())
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
+		return
+	}
+
+	decks, err := h.decks.GetList(r.Context(), userID)
 	if err != nil {
 		writeServiceError(w, r, h.logger, err, "")
 		return

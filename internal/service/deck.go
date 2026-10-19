@@ -10,9 +10,9 @@ import (
 
 // DeckRepository — то, что сервису нужно от хранилища колод.
 type DeckRepository interface {
-	CreateDeck(ctx context.Context, in domain.DeckCreate) (domain.Deck, error)
-	GetDeckByID(ctx context.Context, deckID int64) (domain.Deck, error)
-	GetDeckList(ctx context.Context) ([]domain.Deck, error)
+	CreateDeck(ctx context.Context, in domain.DeckCreate, userID int64) (domain.Deck, error)
+	GetDeckByID(ctx context.Context, deckID, userID int64) (domain.Deck, error)
+	GetDeckList(ctx context.Context, userID int64) ([]domain.Deck, error)
 }
 
 const (
@@ -30,7 +30,7 @@ func NewDeckService(decks DeckRepository) *DeckService {
 	}
 }
 
-func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate) (domain.Deck, error) {
+func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate, userID int64) (domain.Deck, error) {
 	in.Name = strings.TrimSpace(in.Name)
 
 	if in.Name == "" {
@@ -60,23 +60,23 @@ func (s *DeckService) Create(ctx context.Context, in domain.DeckCreate) (domain.
 		}
 	}
 
-	deck, err := s.decks.CreateDeck(ctx, in)
+	deck, err := s.decks.CreateDeck(ctx, in, userID)
 	if err != nil {
 		return domain.Deck{}, err
 	}
 	return deck, nil
 }
 
-func (s *DeckService) GetByID(ctx context.Context, deckID int64) (domain.Deck, error) {
-	deck, err := s.decks.GetDeckByID(ctx, deckID)
+func (s *DeckService) GetByID(ctx context.Context, deckID, userID int64) (domain.Deck, error) {
+	deck, err := s.decks.GetDeckByID(ctx, deckID, userID)
 	if err != nil {
 		return domain.Deck{}, err
 	}
 	return deck, nil
 }
 
-func (s *DeckService) GetList(ctx context.Context) ([]domain.Deck, error) {
-	decks, err := s.decks.GetDeckList(ctx)
+func (s *DeckService) GetList(ctx context.Context, userID int64) ([]domain.Deck, error) {
+	decks, err := s.decks.GetDeckList(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
