@@ -97,3 +97,24 @@ func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64, userID i
 	deck.CreatedAt = deck.CreatedAt.UTC()
 	return deck, nil
 }
+
+func (r *DeckRepository) UpdateDeckByID(ctx context.Context, deckID, userID int64, in domain.DeckUpdate) (domain.Deck, error) {
+
+	deck, err := r.GetDeckByID(ctx, deckID, userID)
+	if err != nil {
+		return domain.Deck{}, err
+	}
+
+	query := `UPDATE decks SET name = COALESCE($1, name), description = COALESCE($2, description)
+				WHERE id = $3 AND user_id = $4 RETURNING name, description`
+
+	err = r.pool.QueryRow(ctx, query, in.Name, in.Description, deckID, userID).Scan(&deck.Name, &deck.Description)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Deck{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Deck{}, fmt.Errorf("update deck: %w", err)
+	}
+
+	return deck, nil
+}
