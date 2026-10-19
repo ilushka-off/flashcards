@@ -7,9 +7,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const (
-	MinCost = 12
-)
+// hashCost — стоимость bcrypt (не минимум: у bcrypt минимум равен 4).
+const hashCost = 12
 
 var (
 	ErrPasswordTooLong = errors.New("password too long")
@@ -20,7 +19,7 @@ var (
 // для bcrypt возвращает ErrPasswordTooLong.
 func HashPassword(password string) (string, error) {
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), MinCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), hashCost)
 	if errors.Is(err, bcrypt.ErrPasswordTooLong) {
 		return "", ErrPasswordTooLong
 	}

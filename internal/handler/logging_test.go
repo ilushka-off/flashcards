@@ -22,7 +22,7 @@ func TestRouterLogsRoutePattern(t *testing.T) {
 
 	decks := NewDeckHandler(&fakeDeckService{deck: domain.Deck{ID: 7}}, discardLogger())
 	health := NewHealthHandler(fakePinger{}, discardLogger())
-	router := NewRouter(decks, health, logger)
+	router := NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), logger)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)
@@ -48,7 +48,7 @@ func TestRouterRoundTripsRequestID(t *testing.T) {
 
 	decks := NewDeckHandler(&fakeDeckService{deck: domain.Deck{ID: 7}}, logger)
 	health := NewHealthHandler(fakePinger{}, logger)
-	router := NewRouter(decks, health, logger)
+	router := NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), logger)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)

@@ -15,7 +15,7 @@ import (
 func newTestRouter(svc DeckService) http.Handler {
 	decks := NewDeckHandler(svc, discardLogger())
 	health := NewHealthHandler(fakePinger{}, discardLogger())
-	return NewRouter(decks, health, discardLogger())
+	return NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), discardLogger())
 }
 
 func TestRouterGetByIDReachesHandler(t *testing.T) {

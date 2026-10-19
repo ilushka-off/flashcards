@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,9 +12,15 @@ import (
 	"github.com/ilushka-off/flashcards/internal/service"
 )
 
+// UserRegistrar — то, что хендлеру нужно от сервиса пользователей.
+type UserRegistrar interface {
+	Register(ctx context.Context, in domain.UserCreate) (domain.User, string, error)
+	Login(ctx context.Context, email, password string) (domain.TokenPair, error)
+}
+
 // UserHandler обслуживает регистрацию и аутентификацию пользователей.
 type UserHandler struct {
-	userService  *service.UserService
+	userService  UserRegistrar
 	tokenTTL     time.Duration
 	cookieSecure bool
 	logger       *slog.Logger
@@ -22,7 +28,7 @@ type UserHandler struct {
 
 // NewUserHandler создаёт UserHandler поверх UserService. tokenTTL должен совпадать
 // со сроком жизни токена у TokenManager, чтобы кука и токен истекали одновременно.
-func NewUserHandler(userService *service.UserService, tokenTTL time.Duration, cookieSecure bool, logger *slog.Logger) *UserHandler {
+func NewUserHandler(userService UserRegistrar, tokenTTL time.Duration, cookieSecure bool, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		userService:  userService,
 		tokenTTL:     tokenTTL,
@@ -31,8 +37,9 @@ func NewUserHandler(userService *service.UserService, tokenTTL time.Duration, co
 	}
 }
 
+// setAuthToken кладёт токен в httpOnly-куку. Authorization — заголовок запроса,
+// сервер его в ответе не возвращает; клиент берёт токен из куки.
 func (h *UserHandler) setAuthToken(w http.ResponseWriter, token string) {
-	w.Header().Add("Authorization", "Bearer "+token)
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.CookieName,
 		Value:    token,
@@ -47,9 +54,8 @@ func (h *UserHandler) setAuthToken(w http.ResponseWriter, token string) {
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req domain.UserCreate
 
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректное тело запроса")
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 	user, token, err := h.userService.Register(r.Context(), req)
@@ -61,9 +67,37 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusConflict, CodeConflict, "email: уже зарегистрирован")
 		return
 	case err != nil:
-		WriteError(w, http.StatusInternalServerError, CodeInternal, msgInternal)
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 	h.setAuthToken(w, token)
 	WriteJSON(w, http.StatusCreated, user)
+}
+
+func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req domain.UserCreate
+
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeServiceError(w, r, h.logger, err, "")
+		return
+	}
+
+	pair, err := h.userService.Login(r.Context(), req.Email, req.Password)
+	switch {
+	case errors.Is(err, service.ErrInvalidInput):
+		WriteError(w, http.StatusBadRequest, CodeValidation, "некорректный email или пароль")
+		return
+	case errors.Is(err, service.ErrInvalidCredentials):
+		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "неверный email или пароль")
+		return
+	case err != nil:
+		writeServiceError(w, r, h.logger, err, "")
+		return
+	}
+	WriteJSON(w, http.StatusOK, domain.TokenResponse{
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(h.tokenTTL.Seconds()),
+	})
 }
