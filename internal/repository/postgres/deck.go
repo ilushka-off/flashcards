@@ -47,11 +47,9 @@ func (r *DeckRepository) GetDeckList(ctx context.Context, userID int64) ([]domai
 	query := `SELECT d.id, d."name", d."language", d.description, COUNT(c.id) AS total_cards, COUNT(c.id) FILTER(WHERE c.due_at <= now()) AS due_cards, d.created_at
 				FROM decks d
 				LEFT JOIN cards c ON d.id = c.deck_id
-				JOIN users u ON u.id = d.user_id
 				WHERE d.user_id = $1
 				GROUP BY d.id, d."name", d."language", d.description
-				ORDER BY d.created_at DESC, d.id
-				`
+				ORDER BY d.created_at DESC, d.id DESC`
 
 	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
@@ -83,10 +81,9 @@ func (r *DeckRepository) GetDeckByID(ctx context.Context, deckID int64, userID i
 	query := `SELECT d.id, d."name", d."language", d.description, COUNT(c.id) AS total_cards, COUNT(c.id) FILTER(WHERE c.due_at <= now()) AS due_cards, d.created_at
 				FROM decks d
 				LEFT JOIN cards c ON d.id = c.deck_id
-				JOIN users u ON u.id = d.user_id
 				WHERE d.id = $1 AND d.user_id = $2
 				GROUP BY d.id, d."name", d."language", d.description
-				ORDER BY d.created_at DESC, d.id`
+				ORDER BY d.created_at DESC, d.id DESC`
 
 	err := r.pool.QueryRow(ctx, query, deckID, userID).Scan(&deck.ID, &deck.Name, &deck.Language, &deck.Description, &deck.TotalCards, &deck.DueCards, &deck.CreatedAt)
 
