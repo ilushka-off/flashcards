@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// RefreshRepository хранит refresh-токены в таблице refresh_tokens и реализует
+// service.RefreshStore поверх пула pgx.
 type RefreshRepository struct {
 	pool *pgxpool.Pool
 }
@@ -53,6 +55,7 @@ func (r *RefreshRepository) RevokeRefreshToken(ctx context.Context, refreshToken
 	}
 	return nil
 }
+
 func (r *RefreshRepository) RevokeAllForUser(ctx context.Context, userID int64) error {
 	query := `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`
 	_, err := r.pool.Exec(ctx, query, userID)

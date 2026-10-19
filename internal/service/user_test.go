@@ -228,7 +228,7 @@ func TestUserServiceLoginSuccess(t *testing.T) {
 	if refresh.createCalls != 1 {
 		t.Fatalf("CreateRefreshToken called %d times, want 1", refresh.createCalls)
 	}
-	wantHash, _ := auth.HashRefreshToken(pair.RefreshToken)
+	wantHash := auth.HashRefreshToken(pair.RefreshToken)
 	if refresh.created.TokenHash != wantHash {
 		t.Errorf("stored hash = %q, want sha256(raw) = %q", refresh.created.TokenHash, wantHash)
 	}

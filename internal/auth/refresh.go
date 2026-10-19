@@ -8,9 +8,12 @@ import (
 	"fmt"
 )
 
+// refreshTokenBytes — длина энтропии refresh-токена: 32 байта = 256 бит.
+const refreshTokenBytes = 32
+
 // GenerateRefreshToken — новая непрозрачная строка (256 бит, base64url).
 func GenerateRefreshToken() (string, error) {
-	b := make([]byte, 32)
+	b := make([]byte, refreshTokenBytes)
 	if _, err := rand.Read(b); err != nil { // crypto/rand
 		return "", fmt.Errorf("generate refresh token: %w", err)
 	}
