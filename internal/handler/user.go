@@ -111,8 +111,12 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, err := h.userService.GetUserByID(r.Context(), userID)
+	if errors.Is(err, domain.ErrNotFound) {
+		WriteError(w, http.StatusNotFound, CodeNotFound, "пользователь не найден")
+		return
+	}
 	if err != nil {
-		WriteError(w, http.StatusUnauthorized, CodeUnauthorized, "требуется авторизация")
+		writeServiceError(w, r, h.logger, err, "")
 		return
 	}
 	WriteJSON(w, http.StatusOK, user)
