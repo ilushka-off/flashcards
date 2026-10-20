@@ -59,11 +59,15 @@ func run() error {
 	deckService := service.NewDeckService(deckRepository)
 	deckHandler := handler.NewDeckHandler(deckService, logger)
 
+	cardRepository := postgres.NewCardRepository(pool)
+	cardService := service.NewCardService(cardRepository)
+	cardHandler := handler.NewCardHandler(cardService, logger)
+
 	userRepository := postgres.NewUserRepository(pool)
 	userService := service.NewUserService(userRepository, tokenManager, refreshRepository, refreshTokenTTL)
 	userHandler := handler.NewUserHandler(userService, accessTokenTTL, cfg.CookieSecure, logger)
 
-	router := handler.NewRouter(deckHandler, healthHandler, userHandler, tokenManager, logger)
+	router := handler.NewRouter(deckHandler, cardHandler, healthHandler, userHandler, tokenManager, logger)
 
 	logger.Info("server started", "port", cfg.HTTPPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.HTTPPort), router); err != nil {

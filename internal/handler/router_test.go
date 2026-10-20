@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,10 +18,17 @@ const testJWTSecret = "test-secret-at-least-32-bytes-long"
 // without a database. The DeckHandler is built on fakeDeckService instead of the
 // real service+repository, so no Postgres connection is needed.
 func newTestRouter(svc DeckService) (http.Handler, *auth.TokenManager) {
+	return newTestRouterWithCards(svc, &fakeCardService{})
+}
+
+// newTestRouterWithCards is newTestRouter with a custom CardService, for
+// routes under /decks/{id}/cards.
+func newTestRouterWithCards(decksSvc DeckService, cardsSvc CardService) (http.Handler, *auth.TokenManager) {
 	tm := auth.NewTokenManager([]byte(testJWTSecret), time.Hour)
-	decks := NewDeckHandler(svc, discardLogger())
+	decks := NewDeckHandler(decksSvc, discardLogger())
+	cards := NewCardHandler(cardsSvc, discardLogger())
 	health := NewHealthHandler(fakePinger{}, discardLogger())
-	router := NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), tm, discardLogger())
+	router := NewRouter(decks, cards, health, newTestUserHandler(&fakeUserRegistrar{}), tm, discardLogger())
 	return router, tm
 }
 
@@ -83,5 +91,44 @@ func assertErrorBody(t *testing.T, rec *httptest.ResponseRecorder, wantCode stri
 	}
 	if body.Error.Message == "" {
 		t.Error("message is empty, want human-readable text")
+	}
+}
+
+func TestRouterCreateCardReachesHandler(t *testing.T) {
+	cards := &fakeCardService{card: domain.Card{ID: 3, DeckID: 7, Front: "uno", Back: "one"}}
+	router, tm := newTestRouterWithCards(&fakeDeckService{}, cards)
+	token, err := tm.Issue(1)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/decks/7/cards", strings.NewReader(`{"front":"uno","back":"one"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusCreated)
+	}
+	// The {id} from the path and the user from the token must reach the service.
+	if cards.gotDeckID != 7 || cards.gotUserID != 1 {
+		t.Errorf("service got (deck %d, user %d), want (7, 1)", cards.gotDeckID, cards.gotUserID)
+	}
+}
+
+func TestRouterCreateCardRequiresAuth(t *testing.T) {
+	cards := &fakeCardService{}
+	router, _ := newTestRouterWithCards(&fakeDeckService{}, cards)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/decks/7/cards", strings.NewReader(`{"front":"uno","back":"one"}`))
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	assertErrorBody(t, rec, CodeUnauthorized)
+	if cards.calls != 0 {
+		t.Errorf("service called %d times, want 0 without token", cards.calls)
 	}
 }
