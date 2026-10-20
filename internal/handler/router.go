@@ -13,7 +13,7 @@ import (
 // Цепочка middleware: RequestID → Logging → Recover → mux, затем /health,
 // /api/v1/auth/register и группа /api/v1/decks; неизвестные пути — 404 в едином
 // формате ошибок API.
-func NewRouter(decksHandler *DeckHandler, healthHandler *HealthHandler, userHandler *UserHandler, token *auth.TokenManager, logger *slog.Logger) http.Handler {
+func NewRouter(decksHandler *DeckHandler, cardsHandler *CardHandler, healthHandler *HealthHandler, userHandler *UserHandler, token *auth.TokenManager, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
@@ -37,6 +37,8 @@ func NewRouter(decksHandler *DeckHandler, healthHandler *HealthHandler, userHand
 				r.Post("/", decksHandler.Create)
 				r.Patch("/{id}", decksHandler.UpdateByID)
 				r.Delete("/{id}", decksHandler.DeleteByID)
+				r.Post("/{id}/cards", cardsHandler.Create)
+
 			})
 		})
 	})

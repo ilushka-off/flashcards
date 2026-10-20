@@ -33,7 +33,7 @@ func TestRouterLogsRoutePattern(t *testing.T) {
 	}
 	decks := NewDeckHandler(&fakeDeckService{deck: domain.Deck{ID: 7}}, discardLogger())
 	health := NewHealthHandler(fakePinger{}, discardLogger())
-	router := NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), tm, logger)
+	router := NewRouter(decks, NewCardHandler(&fakeCardService{}, discardLogger()), health, newTestUserHandler(&fakeUserRegistrar{}), tm, logger)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)
@@ -60,7 +60,7 @@ func TestRouterRoundTripsRequestID(t *testing.T) {
 
 	decks := NewDeckHandler(&fakeDeckService{deck: domain.Deck{ID: 7}}, logger)
 	health := NewHealthHandler(fakePinger{}, logger)
-	router := NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), testTokenManager(), logger)
+	router := NewRouter(decks, NewCardHandler(&fakeCardService{}, discardLogger()), health, newTestUserHandler(&fakeUserRegistrar{}), testTokenManager(), logger)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7", nil)
@@ -94,7 +94,7 @@ func TestRouterLogsUserID(t *testing.T) {
 		logger := slog.New(slog.NewJSONHandler(buf, nil))
 		decks := NewDeckHandler(&fakeDeckService{deck: domain.Deck{ID: 7}}, discardLogger())
 		health := NewHealthHandler(fakePinger{}, discardLogger())
-		return NewRouter(decks, health, newTestUserHandler(&fakeUserRegistrar{}), tm, logger)
+		return NewRouter(decks, NewCardHandler(&fakeCardService{}, discardLogger()), health, newTestUserHandler(&fakeUserRegistrar{}), tm, logger)
 	}
 
 	t.Run("authenticated request logs user_id", func(t *testing.T) {
