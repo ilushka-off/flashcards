@@ -61,9 +61,31 @@ func (r *CardRepository) CreateCard(ctx context.Context, deckID, userID int64, i
 // чтобы клиент отличал «колоды нет» от «ничего не нашлось». total считается
 // отдельным COUNT(*), а не COUNT(*) OVER (): при offset за концом списка
 // страница пуста, и total из неё взять было бы неоткуда.
+//
+// Все три запроса идут в одной транзакции REPEATABLE READ: они видят один
+// снимок данных, поэтому total всегда согласован со страницей. Между запросами
+// разных страниц снимки разные — offset-пагинация может пропустить или
+// повторить карточку, если колоду меняют во время листания.
 func (r *CardRepository) GetCardList(ctx context.Context, deckID, userID int64, limit, offset int, q string) ([]domain.Card, int, error) {
+	var (
+		cards []domain.Card
+		total int
+	)
+	txOpts := pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
+	err := pgx.BeginTxFunc(ctx, r.pool, txOpts, func(tx pgx.Tx) error {
+		var err error
+		cards, total, err = getCardList(ctx, tx, deckID, userID, limit, offset, q)
+		return err
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return cards, total, nil
+}
+
+func getCardList(ctx context.Context, tx pgx.Tx, deckID, userID int64, limit, offset int, q string) ([]domain.Card, int, error) {
 	var exists bool
-	err := r.pool.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM decks WHERE id = $1 AND user_id = $2)`,
 		deckID, userID).Scan(&exists)
 	if err != nil {
@@ -78,14 +100,14 @@ func (r *CardRepository) GetCardList(ctx context.Context, deckID, userID int64, 
 	pattern := "%" + escapeLike(q) + "%"
 
 	var total int
-	err = r.pool.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`SELECT COUNT(*) FROM cards c WHERE `+filter,
 		deckID, q, pattern).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count cards: %w", err)
 	}
 
-	rows, err := r.pool.Query(ctx,
+	rows, err := tx.Query(ctx,
 		`SELECT c.id, c.deck_id, c.front, c.back, c.example, c.ease_factor, c.interval_days,
 			c.repetitions, c.due_at, c.created_at, c.updated_at
 		FROM cards c

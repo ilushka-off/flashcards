@@ -313,11 +313,31 @@ func TestCardHandlerGetListEmpty(t *testing.T) {
 	}
 }
 
+// Диапазон limit и offset проверяет сервис, поэтому хендлер передаёт ему
+// любые целые числа как есть.
+func TestCardHandlerGetListPassesRangeToService(t *testing.T) {
+	svc := &fakeCardService{}
+	h := NewCardHandler(svc, discardLogger())
+
+	rec := httptest.NewRecorder()
+	req := withUser(httptest.NewRequest(http.MethodGet, "/api/v1/decks/3/cards?limit=101&offset=-1", nil))
+	req.SetPathValue("id", "3")
+
+	h.GetList(rec, req)
+
+	if svc.calls != 1 {
+		t.Fatalf("service called %d times, want 1", svc.calls)
+	}
+	if svc.gotLimit != 101 || svc.gotOffset != -1 {
+		t.Errorf("service got (limit %d, offset %d), want (101, -1)", svc.gotLimit, svc.gotOffset)
+	}
+}
+
 func TestCardHandlerGetListErrors(t *testing.T) {
 	const (
 		msgID     = "id: должен быть положительным целым числом"
-		msgLimit  = "limit: целое число от 1 до 100"
-		msgOffset = "offset: целое число не меньше 0"
+		msgLimit  = "limit: должен быть целым числом"
+		msgOffset = "offset: должен быть целым числом"
 	)
 	tests := []struct {
 		name        string
@@ -337,15 +357,7 @@ func TestCardHandlerGetListErrors(t *testing.T) {
 			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgID},
 		{name: "non numeric limit", id: "3", query: "limit=abc", svc: &fakeCardService{},
 			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgLimit},
-		{name: "zero limit", id: "3", query: "limit=0", svc: &fakeCardService{},
-			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgLimit},
-		{name: "negative limit", id: "3", query: "limit=-1", svc: &fakeCardService{},
-			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgLimit},
-		{name: "limit above max", id: "3", query: "limit=101", svc: &fakeCardService{},
-			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgLimit},
 		{name: "non numeric offset", id: "3", query: "offset=abc", svc: &fakeCardService{},
-			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgOffset},
-		{name: "negative offset", id: "3", query: "offset=-1", svc: &fakeCardService{},
 			wantStatus: http.StatusBadRequest, wantCode: CodeValidation, wantMessage: msgOffset},
 		{name: "validation error from service", id: "3", query: "q=long",
 			svc:        &fakeCardService{err: &domain.ValidationError{Field: "q", Message: "не длиннее 100 символов"}},

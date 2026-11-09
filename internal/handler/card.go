@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 
 const (
 	defaultLimit  = 20
-	maxLimit      = 100
 	defaultOffset = 0
 )
 
@@ -68,15 +66,15 @@ func (h *CardHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit, err := parseQueryParams(r, "limit", defaultLimit, 1)
-	if err != nil || limit > maxLimit {
-		WriteError(w, http.StatusBadRequest, CodeValidation, "limit: целое число от 1 до 100")
+	limit, ok := queryInt(r, "limit", defaultLimit)
+	if !ok {
+		WriteError(w, http.StatusBadRequest, CodeValidation, "limit: должен быть целым числом")
 		return
 	}
 
-	offset, err := parseQueryParams(r, "offset", defaultOffset, 0)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, CodeValidation, "offset: целое число не меньше 0")
+	offset, ok := queryInt(r, "offset", defaultOffset)
+	if !ok {
+		WriteError(w, http.StatusBadRequest, CodeValidation, "offset: должен быть целым числом")
 		return
 	}
 	q := r.URL.Query().Get("q")
@@ -94,18 +92,18 @@ func (h *CardHandler) GetList(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, Items[domain.Card]{Items: cards, Total: &total})
 }
 
-// parseQueryParams читает целочисленный query-параметр key.
-// Если параметр не задан, возвращает defaultValue.
-// Если значение не число или меньше minValue, возвращает ошибку.
-func parseQueryParams(r *http.Request, key string, defaultValue, minValue int) (int, error) {
+// queryInt читает целочисленный query-параметр key.
+// Если параметр не задан, возвращает defaultValue и true.
+// Если значение не целое число, возвращает false. Диапазон проверяет сервис.
+func queryInt(r *http.Request, key string, defaultValue int) (int, bool) {
 	s := r.URL.Query().Get(key)
 	if s == "" {
-		return defaultValue, nil
+		return defaultValue, true
 	}
 
 	v, err := strconv.Atoi(s)
-	if err != nil || v < minValue {
-		return 0, fmt.Errorf("%s: целое число не меньше %d", key, minValue)
+	if err != nil {
+		return 0, false
 	}
-	return v, nil
+	return v, true
 }

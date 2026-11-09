@@ -41,8 +41,6 @@ func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"duration", duration.Seconds(),
 				"http_status_code", lw.statusCode,
-				"user_agent", r.UserAgent(),
-				"ip", r.RemoteAddr,
 			}
 			if userID, ok := userctx.UserIDFrom(r.Context()); ok {
 				attrs = append(attrs, "user_id", userID)
