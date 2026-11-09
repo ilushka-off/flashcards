@@ -34,3 +34,6 @@ go.work.sum
 
 # Binaries
 bin/
+
+# Android-клиент живёт отдельно от бэкенда
+android/
