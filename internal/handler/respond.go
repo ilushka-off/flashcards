@@ -27,7 +27,8 @@ type errorDetail struct {
 }
 
 type Items[T any] struct {
-	Items []T `json:"items"`
+	Items []T  `json:"items"`
+	Total *int `json:"total,omitempty"`
 }
 
 // WriteJSON пишет v как JSON с указанным статусом.

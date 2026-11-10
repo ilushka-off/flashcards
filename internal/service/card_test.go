@@ -17,6 +17,13 @@ type fakeCardRepository struct {
 	gotUserID int64
 	calls     int
 	err       error
+
+	// GetCardList: canned page and what the service passed in.
+	cards     []domain.Card
+	total     int
+	gotLimit  int
+	gotOffset int
+	gotQ      string
 }
 
 func (f *fakeCardRepository) CreateCard(_ context.Context, deckID, userID int64, in domain.CardCreate) (domain.Card, error) {
@@ -28,6 +35,102 @@ func (f *fakeCardRepository) CreateCard(_ context.Context, deckID, userID int64,
 		return domain.Card{}, f.err
 	}
 	return domain.Card{ID: 1, DeckID: deckID, Front: in.Front, Back: in.Back, Example: in.Example}, nil
+}
+
+func (f *fakeCardRepository) GetCardList(_ context.Context, deckID, userID int64, limit, offset int, q string) ([]domain.Card, int, error) {
+	f.calls++
+	f.gotDeckID = deckID
+	f.gotUserID = userID
+	f.gotLimit = limit
+	f.gotOffset = offset
+	f.gotQ = q
+	if f.err != nil {
+		return nil, 0, f.err
+	}
+	return f.cards, f.total, nil
+}
+
+func TestCardServiceGetListValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		limit       int
+		offset      int
+		q           string
+		wantField   string
+		wantMessage string
+	}{
+		{name: "zero limit", limit: 0, wantField: "limit", wantMessage: "целое число от 1 до 100"},
+		{name: "limit above max", limit: 101, wantField: "limit", wantMessage: "целое число от 1 до 100"},
+		{name: "negative offset", limit: 20, offset: -1, wantField: "offset", wantMessage: "целое число не меньше 0"},
+		// Length is counted in characters, not bytes: 101 Cyrillic letters are 202 bytes.
+		{name: "q longer than 100 characters", limit: 20, q: strings.Repeat("я", 101), wantField: "q", wantMessage: "не длиннее 100 символов"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeCardRepository{}
+			svc := NewCardService(repo)
+
+			_, _, err := svc.GetList(context.Background(), 7, testUserID, tt.limit, tt.offset, tt.q)
+
+			var verr *domain.ValidationError
+			if !errors.As(err, &verr) {
+				t.Fatalf("GetList() error = %v, want ValidationError", err)
+			}
+			if verr.Field != tt.wantField || verr.Message != tt.wantMessage {
+				t.Errorf("error = %q: %q, want %q: %q", verr.Field, verr.Message, tt.wantField, tt.wantMessage)
+			}
+			if repo.calls != 0 {
+				t.Errorf("repository called %d times, want 0 on invalid input", repo.calls)
+			}
+		})
+	}
+}
+
+func TestCardServiceGetListPassesToRepository(t *testing.T) {
+	want := []domain.Card{{ID: 1, Front: "uno"}, {ID: 2, Front: "dos"}}
+	repo := &fakeCardRepository{cards: want, total: 42}
+	svc := NewCardService(repo)
+
+	got, total, err := svc.GetList(context.Background(), 7, testUserID, 100, 40, "  dead  ")
+	if err != nil {
+		t.Fatalf("GetList() error = %v", err)
+	}
+
+	if repo.gotDeckID != 7 || repo.gotUserID != testUserID {
+		t.Errorf("repository got (deck %d, user %d), want (7, %d)", repo.gotDeckID, repo.gotUserID, testUserID)
+	}
+	// q reaches the repository trimmed; limit and offset unchanged.
+	if repo.gotLimit != 100 || repo.gotOffset != 40 || repo.gotQ != "dead" {
+		t.Errorf("repository got (limit %d, offset %d, q %q), want (100, 40, %q)", repo.gotLimit, repo.gotOffset, repo.gotQ, "dead")
+	}
+	if len(got) != 2 || got[0].ID != 1 || got[1].ID != 2 || total != 42 {
+		t.Errorf("GetList() = (%+v, %d), want (%+v, 42)", got, total, want)
+	}
+}
+
+// The length limit applies after trimming, and 100 Cyrillic letters fit.
+func TestCardServiceGetListQueryAtMaxLength(t *testing.T) {
+	repo := &fakeCardRepository{}
+	svc := NewCardService(repo)
+
+	q := "  " + strings.Repeat("я", 100) + "  "
+	if _, _, err := svc.GetList(context.Background(), 7, testUserID, 20, 0, q); err != nil {
+		t.Fatalf("GetList() error = %v, want nil for 100 characters plus spaces", err)
+	}
+	if repo.calls != 1 {
+		t.Errorf("repository called %d times, want 1", repo.calls)
+	}
+}
+
+func TestCardServiceGetListPassesRepositoryError(t *testing.T) {
+	repo := &fakeCardRepository{err: domain.ErrNotFound}
+	svc := NewCardService(repo)
+
+	_, _, err := svc.GetList(context.Background(), 7, testUserID, 20, 0, "")
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("GetList() error = %v, want ErrNotFound", err)
+	}
 }
 
 func TestCardServiceCreateValidation(t *testing.T) {

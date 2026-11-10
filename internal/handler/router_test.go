@@ -132,3 +132,42 @@ func TestRouterCreateCardRequiresAuth(t *testing.T) {
 		t.Errorf("service called %d times, want 0 without token", cards.calls)
 	}
 }
+
+func TestRouterGetCardListReachesHandler(t *testing.T) {
+	cards := &fakeCardService{cards: []domain.Card{{ID: 3, DeckID: 7, Front: "uno", Back: "one"}}, total: 1}
+	router, tm := newTestRouterWithCards(&fakeDeckService{}, cards)
+	token, err := tm.Issue(1)
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7/cards?limit=5", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	// The {id} from the path, the user from the token and the query must reach the service.
+	if cards.gotDeckID != 7 || cards.gotUserID != 1 || cards.gotLimit != 5 {
+		t.Errorf("service got (deck %d, user %d, limit %d), want (7, 1, 5)", cards.gotDeckID, cards.gotUserID, cards.gotLimit)
+	}
+}
+
+func TestRouterGetCardListRequiresAuth(t *testing.T) {
+	cards := &fakeCardService{}
+	router, _ := newTestRouterWithCards(&fakeDeckService{}, cards)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/decks/7/cards", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	assertErrorBody(t, rec, CodeUnauthorized)
+	if cards.calls != 0 {
+		t.Errorf("service called %d times, want 0 without token", cards.calls)
+	}
+}

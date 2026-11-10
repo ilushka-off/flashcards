@@ -38,6 +38,7 @@ func NewRouter(decksHandler *DeckHandler, cardsHandler *CardHandler, healthHandl
 				r.Patch("/{id}", decksHandler.UpdateByID)
 				r.Delete("/{id}", decksHandler.DeleteByID)
 				r.Post("/{id}/cards", cardsHandler.Create)
+				r.Get("/{id}/cards", cardsHandler.GetList)
 
 			})
 		})
