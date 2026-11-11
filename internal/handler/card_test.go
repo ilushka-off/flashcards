@@ -27,6 +27,9 @@ type fakeCardService struct {
 	gotLimit  int
 	gotOffset int
 	gotQ      string
+	gotCardID int64
+	gotUpdate domain.CardUpdate
+	gotCtx    context.Context
 }
 
 func (f *fakeCardService) Create(_ context.Context, deckID, userID int64, in domain.CardCreate) (domain.Card, error) {
@@ -48,6 +51,23 @@ func (f *fakeCardService) GetList(_ context.Context, deckID, userID int64, limit
 		return nil, 0, f.err
 	}
 	return f.cards, f.total, nil
+}
+
+func (f *fakeCardService) UpdateByID(ctx context.Context, cardID, userID int64, in domain.CardUpdate) (domain.Card, error) {
+	f.calls++
+	f.gotCtx = ctx
+	f.gotCardID = cardID
+	f.gotUserID = userID
+	f.gotUpdate = in
+	return f.card, f.err
+}
+
+func (f *fakeCardService) DeleteByID(ctx context.Context, cardID, userID int64) error {
+	f.calls++
+	f.gotCtx = ctx
+	f.gotCardID = cardID
+	f.gotUserID = userID
+	return f.err
 }
 
 func TestCardHandlerCreateCreated(t *testing.T) {

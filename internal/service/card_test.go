@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
 )
@@ -24,6 +25,13 @@ type fakeCardRepository struct {
 	gotLimit  int
 	gotOffset int
 	gotQ      string
+
+	// UpdateCardByID: optional text fields and the supplied timestamp.
+	gotCardID int64
+	gotUpdate domain.CardUpdate
+	gotNow    time.Time
+	card      domain.Card
+	gotCtx    context.Context
 }
 
 func (f *fakeCardRepository) CreateCard(_ context.Context, deckID, userID int64, in domain.CardCreate) (domain.Card, error) {
@@ -48,6 +56,23 @@ func (f *fakeCardRepository) GetCardList(_ context.Context, deckID, userID int64
 		return nil, 0, f.err
 	}
 	return f.cards, f.total, nil
+}
+
+func (f *fakeCardRepository) UpdateCardByID(_ context.Context, cardID, userID int64, in domain.CardUpdate, now time.Time) (domain.Card, error) {
+	f.calls++
+	f.gotCardID = cardID
+	f.gotUserID = userID
+	f.gotUpdate = in
+	f.gotNow = now
+	return f.card, f.err
+}
+
+func (f *fakeCardRepository) DeleteByID(ctx context.Context, cardID, userID int64) error {
+	f.calls++
+	f.gotCtx = ctx
+	f.gotCardID = cardID
+	f.gotUserID = userID
+	return f.err
 }
 
 func TestCardServiceGetListValidation(t *testing.T) {

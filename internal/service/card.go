@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
@@ -15,6 +16,8 @@ type CardRepository interface {
 	// GetCardList возвращает страницу карточек и общее число подходящих под q.
 	// q уже обрезан; экранировать спецсимволы LIKE — забота repository.
 	GetCardList(ctx context.Context, deckID, userID int64, limit, offset int, q string) ([]domain.Card, int, error)
+	UpdateCardByID(ctx context.Context, cardID, userID int64, in domain.CardUpdate, now time.Time) (domain.Card, error)
+	DeleteByID(ctx context.Context, cardID, userID int64) error
 }
 
 const (
@@ -98,6 +101,53 @@ func (s *CardService) GetList(ctx context.Context, deckID, userID int64, limit, 
 		return nil, 0, err
 	}
 	return cards, total, nil
+}
+
+func (s *CardService) UpdateByID(ctx context.Context, cardID, userID int64, in domain.CardUpdate) (domain.Card, error) {
+	if in.Front == nil && in.Back == nil && in.Example == nil {
+		return domain.Card{}, &domain.ValidationError{
+			Field:   "body",
+			Message: "нужно передать хотя бы одно поле: front, back, example",
+		}
+	}
+
+	var update domain.CardUpdate
+	if in.Front != nil {
+		front, err := validateCardSide("front", *in.Front)
+		if err != nil {
+			return domain.Card{}, err
+		}
+		update.Front = &front
+	}
+	if in.Back != nil {
+		back, err := validateCardSide("back", *in.Back)
+		if err != nil {
+			return domain.Card{}, err
+		}
+		update.Back = &back
+	}
+	if in.Example != nil {
+		example := strings.TrimSpace(*in.Example)
+		if utf8.RuneCountInString(example) > maxCardExampleLen {
+			return domain.Card{}, &domain.ValidationError{
+				Field:   "example",
+				Message: fmt.Sprintf("не длиннее %d символов", maxCardExampleLen),
+			}
+		}
+		update.Example = &example
+	}
+
+	now := time.Now().UTC()
+	card, err := s.cards.UpdateCardByID(ctx, cardID, userID, update, now)
+	if err != nil {
+		return domain.Card{}, err
+	}
+	return card, nil
+}
+
+// DeleteByID удаляет карточку, передавая проверку владельца репозиторию.
+func (s *CardService) DeleteByID(ctx context.Context, cardID, userID int64) error {
+	return s.cards.DeleteByID(ctx, cardID, userID)
 }
 
 // validateCardSide проверяет front или back: обязательное поле не длиннее

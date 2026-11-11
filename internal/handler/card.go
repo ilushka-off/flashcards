@@ -17,6 +17,8 @@ const (
 type CardService interface {
 	Create(ctx context.Context, deckID, userID int64, in domain.CardCreate) (domain.Card, error)
 	GetList(ctx context.Context, deckID, userID int64, limit, offset int, q string) ([]domain.Card, int, error)
+	UpdateByID(ctx context.Context, cardID, userID int64, in domain.CardUpdate) (domain.Card, error)
+	DeleteByID(ctx context.Context, cardID, userID int64) error
 }
 
 type CardHandler struct {
@@ -90,6 +92,55 @@ func (h *CardHandler) GetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	WriteJSON(w, http.StatusOK, Items[domain.Card]{Items: cards, Total: &total})
+}
+
+// UpdateByID обрабатывает PATCH /cards/{id}.
+func (h *CardHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
+	cardID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || cardID < 1 {
+		WriteError(w, http.StatusBadRequest, CodeValidation, "id: должен быть положительным целым числом")
+		return
+	}
+
+	userID, ok := getUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var in domain.CardUpdate
+	if err := decodeJSON(w, r, &in); err != nil {
+		writeServiceError(w, r, h.logger, err, "")
+		return
+	}
+
+	card, err := h.cards.UpdateByID(r.Context(), cardID, userID, in)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err, "карточка не найдена")
+		return
+	}
+	WriteJSON(w, http.StatusOK, card)
+
+}
+
+// DeleteByID обрабатывает DELETE /cards/{id}.
+func (h *CardHandler) DeleteByID(w http.ResponseWriter, r *http.Request) {
+	cardID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || cardID < 1 {
+		WriteError(w, http.StatusBadRequest, CodeValidation, "id: должен быть положительным целым числом")
+		return
+	}
+
+	userID, ok := getUserID(w, r)
+	if !ok {
+		return
+	}
+
+	err = h.cards.DeleteByID(r.Context(), cardID, userID)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err, "карточка не найдена")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // queryInt читает целочисленный query-параметр key.
