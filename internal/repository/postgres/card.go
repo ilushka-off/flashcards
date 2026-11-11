@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ilushka-off/flashcards/internal/domain"
 	"github.com/jackc/pgx/v5"
@@ -81,6 +82,53 @@ func (r *CardRepository) GetCardList(ctx context.Context, deckID, userID int64, 
 		return nil, 0, err
 	}
 	return cards, total, nil
+}
+
+// UpdateCardByID меняет только переданные текстовые поля и updated_at.
+// Владение карточкой проверяется через колоду в том же запросе.
+func (r *CardRepository) UpdateCardByID(ctx context.Context, cardID, userID int64, in domain.CardUpdate, now time.Time) (domain.Card, error) {
+	query := `UPDATE cards AS c
+		SET front = COALESCE($3, c.front),
+			back = COALESCE($4, c.back),
+			example = COALESCE($5, c.example),
+			updated_at = $6
+		FROM decks AS d
+		WHERE c.id = $1 AND c.deck_id = d.id AND d.user_id = $2
+		RETURNING c.id, c.deck_id, c.front, c.back, c.example, c.ease_factor,
+			c.interval_days, c.repetitions, c.due_at, c.created_at, c.updated_at`
+
+	var card domain.Card
+	err := r.pool.QueryRow(ctx, query, cardID, userID, in.Front, in.Back, in.Example, now).
+		Scan(&card.ID, &card.DeckID, &card.Front, &card.Back, &card.Example,
+			&card.EaseFactor, &card.IntervalDays, &card.Repetitions,
+			&card.DueAt, &card.CreatedAt, &card.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Card{}, fmt.Errorf("update card %d: %w", cardID, domain.ErrNotFound)
+	}
+	if err != nil {
+		return domain.Card{}, fmt.Errorf("update card %d: %w", cardID, err)
+	}
+
+	card.DueAt = card.DueAt.UTC()
+	card.CreatedAt = card.CreatedAt.UTC()
+	card.UpdatedAt = card.UpdatedAt.UTC()
+	return card, nil
+}
+
+// DeleteByID удаляет карточку пользователя вместе с историей ответов.
+// Владение проверяется в том же запросе; reviews удаляются каскадом в БД.
+func (r *CardRepository) DeleteByID(ctx context.Context, cardID, userID int64) error {
+	query := `DELETE FROM cards AS c
+		USING decks AS d
+		WHERE c.id = $1 AND c.deck_id = d.id AND d.user_id = $2`
+	tag, err := r.pool.Exec(ctx, query, cardID, userID)
+	if err != nil {
+		return fmt.Errorf("delete card %d: %w", cardID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("delete card %d: %w", cardID, domain.ErrNotFound)
+	}
+	return nil
 }
 
 func getCardList(ctx context.Context, tx pgx.Tx, deckID, userID int64, limit, offset int, q string) ([]domain.Card, int, error) {
